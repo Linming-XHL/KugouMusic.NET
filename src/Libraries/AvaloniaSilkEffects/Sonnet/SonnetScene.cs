@@ -182,15 +182,17 @@ public sealed class SonnetScene : EffectScene
                     var wrapper = new EffectContainer { Position = glyph.Position, Alpha = 0 };
                     var cyan = Text(glyph.Text, fontSize, weight, new EffectColor(0, 1, 1, 0.65f), EffectBlendMode.Screen);
                     var red = Text(glyph.Text, fontSize, weight, new EffectColor(1, 0, 0.27f, 0.65f), EffectBlendMode.Screen);
-                    var ghostA = Text(glyph.Text, fontSize, weight, Theme.Primary with { A = 0.24f });
-                    var ghostB = Text(glyph.Text, fontSize, weight, Theme.Primary with { A = 0.12f });
-                    var core = Text(glyph.Text, fontSize, weight, Theme.Primary);
-                    wrapper.Add(ghostB).Add(ghostA);
+                    var glowColor = placement.Role is SonnetSegmentRole.Hero or SonnetSegmentRole.SemiHero
+                        ? Theme.Primary
+                        : Theme.Accent;
+                    var core = placement.Role == SonnetSegmentRole.Decoration
+                        ? Text(glyph.Text, fontSize, weight, Theme.Primary)
+                        : GlowText(glyph.Text, fontSize, weight, Theme.Primary, glowColor with { A = 0.9f });
                     if (Tuning.ShowChromaticSplit)
                         wrapper.Add(cyan).Add(red);
                     wrapper.Add(core);
                     shotRoot.Add(wrapper);
-                    glyphs.Add(new GlyphView(wrapper, cyan, red, ghostA, ghostB, glyph, placement.Role, fontSize));
+                    glyphs.Add(new GlyphView(wrapper, cyan, red, glyph, placement.Role, fontSize));
                 }
             }
             root.Add(shotRoot);
@@ -222,8 +224,8 @@ public sealed class SonnetScene : EffectScene
         for (var index = paragraph.Shots.Count - 1; index >= 0; index--)
             if (time >= paragraph.Shots[index].Shot.StartTime) { shotIndex = index; break; }
         var shotTransition = SonnetTransitions.ResolveShot(paragraph.ShotList, shotIndex, time,
-            Tuning.EnableTransitions, paragraph.TransitionSeed);
-        var paragraphTransition = SonnetTransitions.ResolveParagraph(paragraph.Paragraph, time, Tuning.EnableTransitions, paragraph.TransitionSeed);
+            Tuning.EnableTransitions, paragraph.TransitionSeed, Tuning.EnableGlitchTransitions);
+        var paragraphTransition = SonnetTransitions.ResolveParagraph(paragraph.Paragraph, time, Tuning.EnableTransitions, paragraph.TransitionSeed, Tuning.EnableGlitchTransitions);
         var transition = shotTransition != SonnetMotion.IdleTransition ? shotTransition : paragraphTransition;
         paragraph.Root.Alpha = (float)transition.Alpha;
         Device.PostProcess.Blur = (float)(transition.Blur / 14);
@@ -289,13 +291,6 @@ public sealed class SonnetScene : EffectScene
                 (float)(1 - SonnetMotion.EaseInOut(glyphProgress) * 0.8);
             glyph.Cyan.Position = new Vector2(-caOffset, caOffset * 0.5f);
             glyph.Red.Position = new Vector2(caOffset, -caOffset * 0.5f);
-            var ghostProgress = (float)SonnetMotion.Clamp01((time - glyph.Placement.StartTime) / 0.42);
-            var ghostVisible = !waiting && ghostProgress is > 0 and < 1;
-            glyph.GhostA.IsVisible = ghostVisible;
-            glyph.GhostB.IsVisible = ghostVisible;
-            var spread = 1 - MathF.Pow(1 - ghostProgress, 3);
-            glyph.GhostA.Position = new Vector2(0, glyph.FontSize * 0.18f * spread);
-            glyph.GhostB.Position = new Vector2(0, glyph.FontSize * 0.31f * spread);
         }
     }
 
@@ -304,6 +299,32 @@ public sealed class SonnetScene : EffectScene
         Text = text, FontFamily = Theme.FontFamily, FontSize = size, FontWeight = weight,
         Color = color, RasterScale = Tuning.TextureResolution, Anchor = new Vector2(0.5f), BlendMode = blend,
     };
+
+    // Original Sonnet renders each glyph's glow and core inside Pixi's one TextStyle
+    // texture. Rasterize both in a single pass so the layers share the same typeface,
+    // metrics and baseline and can never spell different glyphs over each other.
+    private TextNode GlowText(string text, float size, int weight,
+        EffectColor coreColor, EffectColor glowColor)
+    {
+        var rasterScale = Math.Clamp(Tuning.TextureResolution, 1, 4);
+        // Pixi renders the text shadow at roughly half of its `shadowBlur`, which the
+        // original Sonnet sets to max(12, fontSize * 0.18) before DPR scaling. Keep a
+        // slightly stronger fallback here so the glow stays visible on a cover layer.
+        var sigma = MathF.Max(8f, size * 0.11f);
+        return new TextNode
+        {
+            Text = text,
+            FontFamily = Theme.FontFamily,
+            FontSize = size,
+            FontWeight = weight,
+            Color = coreColor,
+            GlowColor = glowColor,
+            GlowSigma = sigma,
+            RasterScale = rasterScale,
+            Anchor = new Vector2(0.5f),
+            BlendMode = EffectBlendMode.Alpha,
+        };
+    }
 
     private void ConfigurePostProcess(float time)
     {
@@ -501,8 +522,8 @@ public sealed class SonnetScene : EffectScene
         public double[] WeightsBuffer { get; }
     }
 
-    private sealed record GlyphView(EffectContainer Wrapper, TextNode Cyan, TextNode Red, TextNode GhostA,
-        TextNode GhostB, SonnetGlyphPlacement Placement, SonnetSegmentRole Role, float FontSize);
+    private sealed record GlyphView(EffectContainer Wrapper, TextNode Cyan, TextNode Red,
+        SonnetGlyphPlacement Placement, SonnetSegmentRole Role, float FontSize);
     private sealed record ShotView(SonnetShot Shot, EffectContainer Root, List<GlyphView> Glyphs,
         List<SonnetGuideView> Guides, SonnetMgView Mg, Vector2 Focus, Vector2 BasePosition,
         TrackingFocusData TrackingFocus, double RevealDoneTime);

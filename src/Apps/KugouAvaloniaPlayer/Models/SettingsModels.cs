@@ -60,6 +60,12 @@ public enum NowPlayingBackgroundSource
     CustomImage
 }
 
+public enum FoliaVisualizerBackgroundMode
+{
+    LatentMaterial,
+    BlurredCover
+}
+
 public enum SavedMainWindowState
 {
     Normal,
@@ -245,6 +251,9 @@ public class AppSettings
 
     public NowPlayingThemePreset NowPlayingThemePreset { get; set; } =
         NowPlayingThemePreset.Standard;
+
+    public FoliaVisualizerBackgroundMode FoliaVisualizerBackgroundMode { get; set; } =
+        FoliaVisualizerBackgroundMode.LatentMaterial;
 
     public FumeThemeSettings FumeTheme { get; set; } = new();
 

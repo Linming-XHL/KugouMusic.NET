@@ -13,6 +13,7 @@ public sealed class EffectTextureCache : IDisposable
 
     private readonly GL _gl;
     private readonly Dictionary<TextTextureKey, EffectTexture> _textTextures = [];
+    private readonly Dictionary<LayeredTextTextureKey, EffectTexture> _layeredTextTextures = [];
     private readonly Dictionary<VectorTextureKey, EffectTexture> _vectorTextures = [];
     private readonly List<EffectTexture> _ownedTextures = [];
     private readonly List<EffectTexture> _sweepBuffer = [];
@@ -150,6 +151,37 @@ public sealed class EffectTextureCache : IDisposable
         return texture;
     }
 
+    /// <summary>
+    /// Rasterizes the sharp glyph and its soft glow into one texture with the same
+    /// typeface and baseline, so the two layers can never drift or spell differently.
+    /// </summary>
+    public EffectTexture GetOrCreateTextLayer(
+        string text,
+        string fontFamily,
+        float fontSize,
+        int fontWeight,
+        EffectColor coreColor,
+        EffectColor glowColor,
+        float glowSigma,
+        float rasterScale = 2)
+    {
+        rasterScale = Math.Clamp(rasterScale, 1, 4);
+        var key = new LayeredTextTextureKey(
+            text, fontFamily, fontSize, fontWeight, coreColor, glowColor, glowSigma, rasterScale);
+        if (_layeredTextTextures.TryGetValue(key, out var cached))
+        {
+            Touch(cached);
+            return cached;
+        }
+
+        var texture = RasterizeTextLayer(key);
+        _layeredTextTextures.Add(key, texture);
+        _ownedTextures.Add(texture);
+        _residentBytes += EstimatedBytes(texture);
+        _lastUsedFrame[texture] = _frame;
+        return texture;
+    }
+
     public unsafe EffectTexture CreateRgba(ReadOnlySpan<byte> rgba, int width, int height, Vector2? logicalSize = null)
     {
         if (rgba.Length != width * height * 4)
@@ -267,6 +299,71 @@ public sealed class EffectTextureCache : IDisposable
             new Vector2(width / key.RasterScale, height / key.RasterScale));
     }
 
+    private unsafe EffectTexture RasterizeTextLayer(LayeredTextTextureKey key)
+    {
+        var style = key.FontWeight >= 700 ? SKFontStyle.Bold : SKFontStyle.Normal;
+        using var typeface = ResolveTypeface(key.FontFamily, style, key.Text);
+        using var font = new SKFont(typeface, key.FontSize * key.RasterScale)
+        {
+            Edging = SKFontEdging.Antialias,
+            Subpixel = true,
+        };
+
+        var textWidth = font.MeasureText(key.Text);
+        font.GetFontMetrics(out var metrics);
+        var blurPhysical = Math.Max(0f, key.GlowSigma * key.RasterScale);
+        var padding = Math.Max(
+            key.GlowSigma > 0 ? 20f : 12f,
+            blurPhysical > 0 ? blurPhysical * 2.5f + 6f : 12f);
+        padding = MathF.Ceiling(padding);
+        var width = Math.Max(1, (int)Math.Ceiling(textWidth) + (int)padding * 2);
+        var height = Math.Max(1, (int)Math.Ceiling(metrics.Descent - metrics.Ascent) + (int)padding * 2);
+
+        using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        var y = padding - metrics.Ascent;
+
+        if (key.GlowColor.A > 0 && key.GlowSigma > 0)
+        {
+            using var glow = new SKPaint
+            {
+                IsAntialias = true,
+                Color = ToSkColor(key.GlowColor),
+                MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, blurPhysical),
+            };
+            canvas.DrawText(key.Text, padding, y, font, glow);
+        }
+
+        using var paint = new SKPaint { IsAntialias = true, Color = ToSkColor(key.CoreColor) };
+        canvas.DrawText(key.Text, padding, y, font, paint);
+        canvas.Flush();
+
+        var handle = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2D, handle);
+        _gl.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.LinearMipmapLinear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+        _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, (uint)width, (uint)height, 0,
+            PixelFormat.Rgba, PixelType.UnsignedByte, bitmap.GetPixels().ToPointer());
+        _gl.GenerateMipmap(TextureTarget.Texture2D);
+
+        return new EffectTexture(
+            _gl,
+            handle,
+            width,
+            height,
+            new Vector2(width / key.RasterScale, height / key.RasterScale));
+    }
+
+    private static SKColor ToSkColor(EffectColor color) => new(
+        (byte)Math.Clamp(color.R * 255, 0, 255),
+        (byte)Math.Clamp(color.G * 255, 0, 255),
+        (byte)Math.Clamp(color.B * 255, 0, 255),
+        (byte)Math.Clamp(color.A * 255, 0, 255));
+
     internal void Collect(int maximumIdleFrames = 120)
     {
         var pressureExceeded = _ownedTextures.Count > ResidentTextureLimit || _residentBytes > ResidentByteLimit;
@@ -314,6 +411,8 @@ public sealed class EffectTextureCache : IDisposable
     {
         foreach (var key in _textTextures.AsValueEnumerable().Where(pair => ReferenceEquals(pair.Value, texture)).Select(pair => pair.Key).ToArray())
             _textTextures.Remove(key);
+        foreach (var key in _layeredTextTextures.AsValueEnumerable().Where(pair => ReferenceEquals(pair.Value, texture)).Select(pair => pair.Key).ToArray())
+            _layeredTextTextures.Remove(key);
         foreach (var key in _vectorTextures.AsValueEnumerable().Where(pair => ReferenceEquals(pair.Value, texture)).Select(pair => pair.Key).ToArray())
             _vectorTextures.Remove(key);
         _ownedTextures.Remove(texture);
@@ -332,6 +431,7 @@ public sealed class EffectTextureCache : IDisposable
         _ownedTextures.Clear();
         _lastUsedFrame.Clear();
         _textTextures.Clear();
+        _layeredTextTextures.Clear();
         _vectorTextures.Clear();
         _sweepBuffer.Clear();
         _residentBytes = 0;
@@ -344,6 +444,7 @@ public sealed class EffectTextureCache : IDisposable
         _ownedTextures.Clear();
         _lastUsedFrame.Clear();
         _textTextures.Clear();
+        _layeredTextTextures.Clear();
         _vectorTextures.Clear();
         _sweepBuffer.Clear();
         _residentBytes = 0;

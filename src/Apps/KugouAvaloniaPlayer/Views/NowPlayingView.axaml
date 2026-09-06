@@ -118,21 +118,21 @@
                behaviors:LocalArtworkImageBehavior.Source="{Binding Player.DisplayedPlayingSong.Cover}"
                behaviors:LocalArtworkImageBehavior.DecodePixelWidth="50"
                behaviors:LocalArtworkImageBehavior.UseDefaultFallback="False"
-               behaviors:LocalArtworkImageBehavior.IsEnabled="{Binding IsFoliaBackgroundActive}"
+               behaviors:LocalArtworkImageBehavior.IsEnabled="{Binding IsFoliaLatentMaterialActive}"
                behaviors:NowPlayingRemoteImageBehavior.Source="{Binding Player.DisplayedPlayingSong.Cover, Converter={StaticResource RemoteImageSourceConverter}}"
-               behaviors:NowPlayingRemoteImageBehavior.IsEnabled="{Binding IsFoliaBackgroundActive}" />
+               behaviors:NowPlayingRemoteImageBehavior.IsEnabled="{Binding IsFoliaLatentMaterialActive}" />
         <controls:LatentBackgroundControl x:Name="FoliaBackground"
                Player="{Binding Player}"
                Cover="{Binding #FoliaCoverImage.Source}"
                IsSonnet="{Binding IsSonnetTheme}"
-               IsActive="{Binding IsFoliaBackgroundActive}"
-               IsVisible="{Binding IsFoliaBackgroundActive}" />
+               IsActive="{Binding IsFoliaLatentMaterialActive}"
+               IsVisible="{Binding IsFoliaLatentMaterialActive}" />
         <Grid x:Name="ThemeContentHost" />
         <TextBlock Text="{Binding #FoliaBackground.LastError}"
                    Foreground="#FFFFD4C4" Background="#E0201010"
                    MaxWidth="720" TextWrapping="Wrap" Margin="24,80,24,24"
                    HorizontalAlignment="Center" VerticalAlignment="Top"
-                   IsVisible="{Binding IsFoliaBackgroundActive}" IsHitTestVisible="False" />
+                   IsVisible="{Binding IsFoliaLatentMaterialActive}" IsHitTestVisible="False" />
 
         <Border Height="72"
                 VerticalAlignment="Top"

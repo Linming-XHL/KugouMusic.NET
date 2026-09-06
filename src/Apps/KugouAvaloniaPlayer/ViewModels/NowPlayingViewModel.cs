@@ -59,6 +59,9 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
 
         Player.PropertyChanged += OnPlayerPropertyChanged;
         NowPlayingLyricDisplayMode = SettingsManager.Settings.PlayPageLyricDisplayMode;
+        FoliaBackgroundMode = Enum.IsDefined(SettingsManager.Settings.FoliaVisualizerBackgroundMode)
+            ? SettingsManager.Settings.FoliaVisualizerBackgroundMode
+            : FoliaVisualizerBackgroundMode.LatentMaterial;
         SelectedThemePreset = NowPlayingThemePresetRegistry.Normalize(
             SettingsManager.Settings.NowPlayingThemePreset);
         ApplyUiPreferences(_uiPreferencesState.Current);
@@ -74,7 +77,9 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
         NowPlayingThemePresetRegistry.Presets;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFoliaBackgroundActive))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaThemeActive))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaLatentMaterialActive))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaBlurredCoverActive))]
     public partial bool IsOpen { get; set; }
 
     [ObservableProperty]
@@ -129,11 +134,21 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
         NowPlayingLyricDisplayMode.LyricsWithTranslation;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFoliaLatentMaterialActive))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaBlurredCoverActive))]
+    [NotifyPropertyChangedFor(nameof(IsLatentMaterialBackground))]
+    [NotifyPropertyChangedFor(nameof(IsBlurredCoverBackground))]
+    public partial FoliaVisualizerBackgroundMode FoliaBackgroundMode { get; set; } =
+        FoliaVisualizerBackgroundMode.LatentMaterial;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStandardTheme))]
     [NotifyPropertyChangedFor(nameof(IsPendoloTheme))]
     [NotifyPropertyChangedFor(nameof(IsFumeTheme))]
     [NotifyPropertyChangedFor(nameof(IsSonnetTheme))]
-    [NotifyPropertyChangedFor(nameof(IsFoliaBackgroundActive))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaThemeActive))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaLatentMaterialActive))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaBlurredCoverActive))]
     [NotifyPropertyChangedFor(nameof(IsStandardLayoutVisible))]
     [NotifyPropertyChangedFor(nameof(CurrentThemePresetName))]
     public partial NowPlayingThemePreset SelectedThemePreset { get; set; } =
@@ -214,7 +229,19 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
 
     public bool IsSonnetTheme => SelectedThemePreset == NowPlayingThemePreset.Sonnet;
 
-    public bool IsFoliaBackgroundActive => IsOpen && (IsFumeTheme || IsSonnetTheme);
+    public bool IsFoliaThemeActive => IsOpen && (IsFumeTheme || IsSonnetTheme);
+
+    public bool IsFoliaLatentMaterialActive =>
+        IsFoliaThemeActive && FoliaBackgroundMode == FoliaVisualizerBackgroundMode.LatentMaterial;
+
+    public bool IsFoliaBlurredCoverActive =>
+        IsFoliaThemeActive && FoliaBackgroundMode == FoliaVisualizerBackgroundMode.BlurredCover;
+
+    public bool IsLatentMaterialBackground =>
+        FoliaBackgroundMode == FoliaVisualizerBackgroundMode.LatentMaterial;
+
+    public bool IsBlurredCoverBackground =>
+        FoliaBackgroundMode == FoliaVisualizerBackgroundMode.BlurredCover;
 
     public bool IsStandardLayoutVisible => IsStandardTheme && !HasPortraitBackground;
 
@@ -449,6 +476,29 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
         SettingsManager.Settings.PlayPageLyricDisplayMode = value;
         SettingsManager.Save();
     }
+
+    partial void OnFoliaBackgroundModeChanged(FoliaVisualizerBackgroundMode value)
+    {
+        var normalized = Enum.IsDefined(value)
+            ? value
+            : FoliaVisualizerBackgroundMode.LatentMaterial;
+        if (normalized != value)
+        {
+            FoliaBackgroundMode = normalized;
+            return;
+        }
+
+        SettingsManager.Settings.FoliaVisualizerBackgroundMode = normalized;
+        SettingsManager.Save();
+    }
+
+    [RelayCommand]
+    private void UseLatentMaterialBackground() =>
+        FoliaBackgroundMode = FoliaVisualizerBackgroundMode.LatentMaterial;
+
+    [RelayCommand]
+    private void UseBlurredCoverBackground() =>
+        FoliaBackgroundMode = FoliaVisualizerBackgroundMode.BlurredCover;
 
     partial void OnSelectedThemePresetChanged(NowPlayingThemePreset value)
     {

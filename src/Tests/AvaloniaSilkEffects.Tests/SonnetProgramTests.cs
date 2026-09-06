@@ -9,6 +9,27 @@ public sealed class SonnetProgramTests
     private static SonnetLine Line(string text, double start, double end, int? block = null, bool chorus = false) =>
         new(text, start, end, [new(text, start, end)], BlockIndex: block, IsChorus: chorus);
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GlitchOptOut_PreservesSmoothTransitions(bool entering)
+    {
+        for (var i = 0; i <= 100; i++)
+        {
+            var progress = i / 100d;
+            var smooth = SonnetTransitions.Resolve(SonnetTransitionKind.MonoGlitch,
+                entering, progress, 42, allowGlitch: false);
+            Assert.Equal(0, smooth.Glitch);
+            Assert.Equal(SonnetTransitions.Resolve(SonnetTransitionKind.FastBlur,
+                entering, progress, 42), smooth);
+            Assert.Equal(SonnetTransitions.Resolve(SonnetTransitionKind.CameraPull,
+                entering, progress, 42), SonnetTransitions.Resolve(SonnetTransitionKind.CameraPull,
+                entering, progress, 42, allowGlitch: false));
+        }
+        Assert.True(SonnetTransitions.Resolve(SonnetTransitionKind.MonoGlitch,
+            entering, 0.5, 42).Glitch > 0);
+    }
+
     [Fact]
     public void Compiler_IsDeterministicAndRegistersSevenShotKinds()
     {

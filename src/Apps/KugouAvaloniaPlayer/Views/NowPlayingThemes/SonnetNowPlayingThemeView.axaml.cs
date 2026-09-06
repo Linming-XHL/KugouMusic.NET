@@ -177,6 +177,7 @@ public partial class SonnetNowPlayingThemeView : UserControl
                     TextureResolution = 1.5f,
                     PostProcessEnabled = true,
                     ShowChromaticSplit = false,
+                    EnableGlitchTransitions = false,
                     PostProcessRgbShift = 0,
                     PostProcessLensDispersion = 0,
                 },

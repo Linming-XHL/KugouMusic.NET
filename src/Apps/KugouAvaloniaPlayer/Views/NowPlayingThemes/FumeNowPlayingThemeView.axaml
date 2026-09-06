@@ -163,6 +163,37 @@
                                             Cursor="Hand" />
                                 </Grid>
 
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="FumeSettingsLabel" Text="背景材质" />
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                        <Button Classes="FumeSegment"
+                                                Command="{Binding UseLatentMaterialBackgroundCommand}"
+                                                Cursor="Hand">
+                                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                                <Border Width="6"
+                                                        Height="6"
+                                                        CornerRadius="3"
+                                                        Background="#FFD6A91F"
+                                                        IsVisible="{Binding IsLatentMaterialBackground}" />
+                                                <TextBlock Text="动态材质" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1"
+                                                Classes="FumeSegment"
+                                                Command="{Binding UseBlurredCoverBackgroundCommand}"
+                                                Cursor="Hand">
+                                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                                <Border Width="6"
+                                                        Height="6"
+                                                        CornerRadius="3"
+                                                        Background="#FFD6A91F"
+                                                        IsVisible="{Binding IsBlurredCoverBackground}" />
+                                                <TextBlock Text="模糊封面" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+
                                 <StackPanel Spacing="7">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Classes="FumeSettingsLabel" Text="世界物体透明度" />

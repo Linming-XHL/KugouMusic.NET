@@ -193,13 +193,18 @@ public sealed class EffectPrimitiveRenderer : IDisposable
                 color);
     }
 
-    public void DrawSprite(SpriteNode sprite) => DrawTexture(
-        sprite.Texture!,
-        sprite.WorldTransform,
-        sprite.Size == Vector2.Zero ? sprite.Texture!.LogicalSize : sprite.Size,
-        sprite.WorldAlpha,
-        sprite.BlendMode,
-        sprite.Tint);
+    public void DrawSprite(SpriteNode sprite)
+    {
+        var anchor = sprite.Texture!.LogicalSize * sprite.Anchor;
+        var transform = Matrix3x2.CreateTranslation(-anchor) * sprite.WorldTransform;
+        DrawTexture(
+            sprite.Texture!,
+            transform,
+            sprite.Size == Vector2.Zero ? sprite.Texture!.LogicalSize : sprite.Size,
+            sprite.WorldAlpha,
+            sprite.BlendMode,
+            sprite.Tint);
+    }
 
     public void DrawTexture(
         EffectTexture texture,

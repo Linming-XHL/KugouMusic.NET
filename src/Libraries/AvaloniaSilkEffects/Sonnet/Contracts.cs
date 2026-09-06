@@ -48,6 +48,7 @@ public sealed class SonnetTuning
     public bool ShowBackgroundDecor { get; set; } = true;
     public bool ShowChromaticSplit { get; set; } = true;
     public bool EnableTransitions { get; set; } = true;
+    public bool EnableGlitchTransitions { get; set; } = true;
     public SonnetOuterFrameMode OuterFrameMode { get; set; } = SonnetOuterFrameMode.Full;
     public float TextureResolution { get; set; } = 1.5f;
     public bool PostProcessEnabled { get; set; }
