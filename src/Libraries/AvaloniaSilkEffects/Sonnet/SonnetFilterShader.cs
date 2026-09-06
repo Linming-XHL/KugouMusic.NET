@@ -1,6 +1,5 @@
 namespace AvaloniaSilkEffects.Sonnet;
 
-// Folia d5b8b24d sonnetLensFilter/sonnetPrintFilters and Pixi NoiseFilter.
 internal static class SonnetFilterShader
 {
     internal const string Fragment = """

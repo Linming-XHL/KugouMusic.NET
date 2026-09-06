@@ -6,7 +6,7 @@ namespace AvaloniaSilkEffects.Tests;
 public sealed class LatentBackgroundTests
 {
     [Fact]
-    public void CoverColorsKeepFoliaOrderAndThemeFallback()
+    public void CoverColorsKeepMeshOrderAndThemeFallback()
     {
         var theme = LatentPalette.Midnight;
         Assert.Equal(new[] { theme.Secondary,theme.Primary,theme.Secondary,theme.Primary,theme.Background,theme.Accent },

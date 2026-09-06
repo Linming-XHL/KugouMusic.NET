@@ -88,6 +88,8 @@ public sealed class PolylineNode : EffectNode
     public IReadOnlyList<Vector2> Points { get; set; } = [];
     public int StartPointIndex { get; set; }
     public int EndPointIndex { get; set; } = int.MaxValue;
+    internal Vector2? StartPositionOverride { get; set; }
+    internal Vector2? EndPositionOverride { get; set; }
     public float TailWidth { get; set; } = 1;
     public float HeadWidth { get; set; } = 1;
     public float TailAlpha { get; set; } = 0.15f;

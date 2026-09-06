@@ -147,6 +147,7 @@ public sealed class SonnetScene : EffectScene
             var glyphs = new List<GlyphView>();
             var tracking = new List<IReadOnlyList<(Vector2 Position, double StartTime, bool IsBackgroundShape)>>();
             var guides = new List<SonnetGuideView>();
+            var frames = new List<SonnetFrameDecorView>();
             for (var placementIndex = 0; placementIndex < placements.Count; placementIndex++)
             {
                 var placement = placements[placementIndex];
@@ -169,12 +170,18 @@ public sealed class SonnetScene : EffectScene
                     shotRoot.Add(guide.Root);
                     guides.Add(guide);
                 }
-                if (!Tuning.ShowOnlyText && Tuning.ShowFixedGeo &&
-                    (placement.Role is SonnetSegmentRole.Hero or SonnetSegmentRole.SemiHero || decorSeed % 100 < 28))
-                    shotRoot.Add(SonnetMgBuilder.BuildFrame(placement, fontSize, Theme, decorSeed));
                 var glyphLayout = SonnetMotion.BuildGlyphs(segment, placement, fontSize,
                     text => EffectTextureCache.MeasureText(text, Theme.FontFamily, fontSize, weight).X,
                     shot.StartTime, shot.EndTime);
+                var frameSpec = SonnetFrameDecorView.ResolveSpec(segment);
+                if (!Tuning.ShowOnlyText && Tuning.ShowFixedGeo && frameSpec.Applied &&
+                    placement.Role != SonnetSegmentRole.Decoration && glyphLayout.Count > 0)
+                {
+                    var frameDecor = new SonnetFrameDecorView(placement, fontSize, Theme, frameSpec.Variant,
+                        glyphLayout[0].StartTime, shot.StartTime, shot.EndTime);
+                    shotRoot.Add(frameDecor.Root);
+                    frames.Add(frameDecor);
+                }
                 if (glyphLayout.Count > 0)
                     tracking.Add(glyphLayout.Select(glyph => (glyph.Position, glyph.StartTime, false)).ToArray());
                 foreach (var glyph in glyphLayout)
@@ -202,7 +209,7 @@ public sealed class SonnetScene : EffectScene
                 _size.Width * (float)(poster ? 0.5 : 0.5 + shot.Camera.X),
                 _size.Height * (float)(poster ? 0.5 : 0.48 + shot.Camera.Y + (shotIndex % 2 == 1 ? 0.025 : -0.025)));
             var revealDoneTime = glyphs.Count == 0 ? shot.EndTime : glyphs.Max(item => item.Placement.StartTime);
-            shots.Add(new ShotView(shot, shotRoot, glyphs, guides, mg,
+            shots.Add(new ShotView(shot, shotRoot, glyphs, guides, frames, mg,
                 poster ? Vector2.Zero : new Vector2(hero?.X ?? 0, hero?.Y ?? 0), basePosition,
                 new TrackingFocusData(tracking), revealDoneTime));
         }
@@ -265,6 +272,12 @@ public sealed class SonnetScene : EffectScene
             _size.Height * (float)(camera.Y * cameraIntensity + breath.Y * breathWeight));
         view.Mg.Update(time, view.Shot.StartTime, view.Shot.EndTime, Audio, cameraOffset,
             (float)camera.Scale, view.Root.Rotation);
+
+        foreach (var frame in view.Frames)
+        {
+            frame.Root.IsVisible = Tuning.ShowFixedGeo && !Tuning.ShowOnlyText;
+            frame.Update(time);
+        }
 
         foreach (var guide in view.Guides)
         {
@@ -525,7 +538,7 @@ public sealed class SonnetScene : EffectScene
     private sealed record GlyphView(EffectContainer Wrapper, TextNode Cyan, TextNode Red,
         SonnetGlyphPlacement Placement, SonnetSegmentRole Role, float FontSize);
     private sealed record ShotView(SonnetShot Shot, EffectContainer Root, List<GlyphView> Glyphs,
-        List<SonnetGuideView> Guides, SonnetMgView Mg, Vector2 Focus, Vector2 BasePosition,
+        List<SonnetGuideView> Guides, List<SonnetFrameDecorView> Frames, SonnetMgView Mg, Vector2 Focus, Vector2 BasePosition,
         TrackingFocusData TrackingFocus, double RevealDoneTime);
     private sealed record ParagraphView(SonnetParagraph Paragraph, EffectContainer Root, List<ShotView> Shots,
         uint NoiseSeed, uint TransitionSeed, SonnetShot[] ShotList);

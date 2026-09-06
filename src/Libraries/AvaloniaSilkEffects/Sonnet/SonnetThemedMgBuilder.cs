@@ -2,8 +2,6 @@ using System.Numerics;
 
 namespace AvaloniaSilkEffects.Sonnet;
 
-// Ported from Folia v0.7.2 (d5b8b24d): sonnetThemedShotMg.ts and its
-// flora, botanical, architecture, landscape and primitive modules.
 internal static partial class SonnetMgBuilder
 {
     private static void BuildThemedGeometry(

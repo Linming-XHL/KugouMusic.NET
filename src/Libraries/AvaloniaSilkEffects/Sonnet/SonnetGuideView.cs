@@ -141,11 +141,17 @@ internal sealed class SonnetGuideView
         if (!line.IsVisible) return;
         line.StartPointIndex = Math.Clamp((int)MathF.Floor(tailT * CurveSegments), 0, CurveSegments - 1);
         line.EndPointIndex = Math.Clamp((int)MathF.Ceiling(headT * CurveSegments), line.StartPointIndex + 1, CurveSegments);
+        line.StartPositionOverride = Point(line, tailT);
+        line.EndPositionOverride = Point(line, headT);
         line.Alpha = alpha;
     }
 
-    private static Vector2 Point(PolylineNode line, float progress) =>
-        line.Points[Math.Clamp((int)MathF.Round(progress * CurveSegments), 0, CurveSegments)];
+    internal static Vector2 Point(PolylineNode line, float progress)
+    {
+        var position = Math.Clamp(progress, 0, 1) * (line.Points.Count - 1);
+        var index = Math.Min((int)position, line.Points.Count - 2);
+        return Vector2.Lerp(line.Points[index], line.Points[index + 1], position - index);
+    }
 
     private static void SetHead(ShapeNode node, Vector2 center, bool visible, float alpha)
     {

@@ -1,6 +1,5 @@
 namespace AvaloniaSilkEffects.Sonnet;
 
-/// <summary>Folia d5b8b24d colorPalette.ts weighted median-cut of straight RGBA pixels.</summary>
 public static class SonnetCoverPalette
 {
     public static IReadOnlyList<EffectColor> Extract(ReadOnlySpan<byte> rgba, int count = 6)

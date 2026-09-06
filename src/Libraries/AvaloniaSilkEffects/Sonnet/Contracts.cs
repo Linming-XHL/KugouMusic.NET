@@ -2,7 +2,6 @@ using System.Numerics;
 
 namespace AvaloniaSilkEffects.Sonnet;
 
-// Ported from Folia Sonnet v0.7.2, commit d5b8b24d5c873362f17bb372028afdbc30a4d2b2.
 public sealed record SonnetWordTiming(string Text, double StartTime, double EndTime);
 
 public sealed record SonnetLine(

@@ -5,6 +5,7 @@ namespace AvaloniaSilkEffects.Sonnet;
 /// <summary>Persistent, seek-stable background particles owned by one Sonnet shot.</summary>
 internal sealed class SonnetMgView
 {
+    private readonly SonnetStrokeReveal _strokeReveal;
     private readonly List<ParticleView> _particles = [];
     private readonly List<ParticleView> _icons = [];
     private float _smoothedIconAudio;
@@ -15,6 +16,7 @@ internal sealed class SonnetMgView
         float width, float height, uint seed, bool buildParticles)
     {
         Root = root;
+        _strokeReveal = new SonnetStrokeReveal(root);
         FixedGeometryLayer = fixedGeometryLayer;
         ParticleLayer = new EffectContainer();
         Root.Add(ParticleLayer);
@@ -34,6 +36,8 @@ internal sealed class SonnetMgView
     internal void Update(double time, double shotStartTime, double shotEndTime, SonnetAudioFrame audio,
         Vector2 cameraOffset, float cameraScale, float cameraRotation)
     {
+        _strokeReveal.Update(Math.Clamp((time - shotStartTime) /
+            Math.Max(1, (shotEndTime - shotStartTime) * 0.95), 0, 1));
         // Folia's non-icon background decor is a static print layer. It moves with
         // the owning shot/camera, but does not independently orbit or swim.
         foreach (var particle in _particles)

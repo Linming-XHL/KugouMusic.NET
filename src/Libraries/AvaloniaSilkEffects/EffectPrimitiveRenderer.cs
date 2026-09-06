@@ -126,6 +126,10 @@ public sealed class EffectPrimitiveRenderer : IDisposable
         {
             for (var index = 0; index < pointCount; index++)
                 positions[index] = Vector2.Transform(polyline.Points[start + index], polyline.WorldTransform);
+            if (polyline.StartPositionOverride is { } first)
+                positions[0] = Vector2.Transform(first, polyline.WorldTransform);
+            if (polyline.EndPositionOverride is { } last)
+                positions[pointCount - 1] = Vector2.Transform(last, polyline.WorldTransform);
             for (var index = 0; index < pointCount - 1; index++)
             {
                 var delta = positions[index + 1] - positions[index];

@@ -25,6 +25,5 @@
     <Compile Include="../../Apps/KugouAvaloniaPlayer/Controls/FumeRenderFrame.cs" Link="Fume/FumeRenderFrame.cs" />
     <Compile Include="../../Apps/KugouAvaloniaPlayer/Controls/FumePlayback.cs" Link="Fume/FumePlayback.cs" />
     <Compile Include="../../Apps/KugouAvaloniaPlayer/Controls/FumeEffectScene.cs" Link="Fume/FumeEffectScene.cs" />
-    <None Include="Fixtures/**/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

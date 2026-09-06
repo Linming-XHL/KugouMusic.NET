@@ -118,30 +118,6 @@ internal static partial class SonnetMgBuilder
         return root;
     }
 
-    internal static EffectContainer BuildFrame(
-        SonnetTypographyPlacement placement, float fontSize, SonnetTheme theme, uint seed)
-    {
-        var root = new EffectContainer { Position = new Vector2(placement.X, placement.Y), Rotation = placement.Rotation };
-        var pad = Math.Clamp(fontSize * 0.22f, 8, 20);
-        var halfW = placement.MeasuredWidth / 2 + pad;
-        var halfH = placement.MeasuredHeight / 2 + pad;
-        var arm = Math.Clamp(Math.Min(halfW, halfH) * 0.3f, 7, 30);
-        var color = theme.Primary with { A = 0.42f };
-        var variant = seed % 4;
-        var corners = new[] { new Vector2(-halfW, -halfH), new Vector2(halfW, -halfH), new Vector2(halfW, halfH), new Vector2(-halfW, halfH) };
-        foreach (var corner in corners)
-        {
-            var sx = MathF.Sign(corner.X);
-            var sy = MathF.Sign(corner.Y);
-            AddLine(root, corner, corner - new Vector2(sx * arm, 0), 1.4f, color);
-            AddLine(root, corner, corner - new Vector2(0, sy * arm), 1.4f, color);
-            if (variant == 1) AddCircle(root, corner - new Vector2(sx * 5, sy * 5), 3.5f, theme.Accent with { A = 0.55f });
-            else if (variant == 2) AddDiamond(root, corner - new Vector2(sx * 5, sy * 5), 4, theme.Accent with { A = 0.52f });
-            else if (variant == 3) AddLine(root, corner - new Vector2(sx * 5, sy * 5), corner - new Vector2(sx * (arm + 5), sy * 5), 0.8f, color with { A = 0.25f });
-        }
-        return root;
-    }
-
     internal static SonnetGuideView BuildGuide(
         SonnetSemanticSegment segment, SonnetTypographyPlacement placement, float fontSize, SonnetTheme theme, uint seed) =>
         new(segment, placement, fontSize, theme, seed);
