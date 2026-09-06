@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,9 +16,15 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <ProjectReference Include="../../Libraries/AvaloniaSilkEffects/AvaloniaSilkEffects.csproj" />
+    <ProjectReference Include="../../Libraries/AvaloniaLyrics/AvaloniaLyrics.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Compile the VM-independent Fume adapter without building the player. -->
+    <Compile Include="../../Apps/KugouAvaloniaPlayer/Controls/FumeArticleLayout.cs" Link="Fume/FumeArticleLayout.cs" />
+    <Compile Include="../../Apps/KugouAvaloniaPlayer/Controls/FumeRenderFrame.cs" Link="Fume/FumeRenderFrame.cs" />
+    <Compile Include="../../Apps/KugouAvaloniaPlayer/Controls/FumePlayback.cs" Link="Fume/FumePlayback.cs" />
+    <Compile Include="../../Apps/KugouAvaloniaPlayer/Controls/FumeEffectScene.cs" Link="Fume/FumeEffectScene.cs" />
     <None Include="Fixtures/**/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

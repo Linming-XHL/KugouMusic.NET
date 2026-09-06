@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -7,16 +6,14 @@ using ZLinq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Rendering.SceneGraph;
-using Avalonia.Skia;
+using AvaloniaSilkEffects;
 using KugouAvaloniaPlayer.Models;
 using KugouAvaloniaPlayer.ViewModels;
-using SkiaSharp;
 
 namespace KugouAvaloniaPlayer.Controls;
 
 // Folia's Fume visualizer expressed as an immutable article layout plus a moving camera.
-public sealed class FumeVisualizerControl : Control
+public sealed class FumeVisualizerControl : SilkEffectControl
 {
     private const double CameraScaleMin = 0.22;
     private const double CameraScaleMax = 2.24;
@@ -79,6 +76,14 @@ public sealed class FumeVisualizerControl : Control
         AvaloniaProperty.Register<FumeVisualizerControl, double>(
             nameof(ParallaxOriginY),
             0.5);
+
+    private readonly FumeEffectScene _fumeScene = new();
+
+    public FumeVisualizerControl()
+    {
+        RenderMode = EffectRenderMode.OnDemand;
+        Scene = _fumeScene;
+    }
 
     private PlayerViewModel? _subscribedPlayer;
     private FumeArticleLayout? _article;
@@ -251,6 +256,7 @@ public sealed class FumeVisualizerControl : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         AttachPlayer(null);
+        _fumeScene.Clear();
         _frameQueued = false;
         _hasFrameTimestamp = false;
         _parallax?.Detach();
@@ -273,6 +279,19 @@ public sealed class FumeVisualizerControl : Control
             MarkLayoutDirty(_article != null);
         }
 
+        if (change.Property == BackgroundObjectOpacityProperty ||
+            change.Property == TextHoldRatioProperty || change.Property == GlowIntensityProperty ||
+            change.Property == CameraSpeedProperty || change.Property == CameraTrackingModeProperty)
+        {
+            _settleFrames = Math.Max(_settleFrames, 45);
+            PublishFrame();
+            RequestNextFrame();
+        }
+        if (change.Property == IsActiveProperty && change.NewValue is false)
+        {
+            _fumeScene.Clear();
+            RenderOnce();
+        }
         if (change.Property == IsActiveProperty && change.NewValue is true)
         {
             _hasFrameTimestamp = false;
@@ -281,51 +300,37 @@ public sealed class FumeVisualizerControl : Control
         }
     }
 
-    public override void Render(DrawingContext context)
+    private void PublishFrame()
     {
-        base.Render(context);
-        if (Bounds.Width <= 1 || Bounds.Height <= 1 || Player == null)
-            return;
-
-        EnsureArticle();
-        var article = _article;
-        var player = Player;
-        if (article == null)
+        if (Bounds.Width <= 1 || Bounds.Height <= 1 || Player == null || !IsActive)
         {
-            context.Custom(new EmptyFumeDrawOperation(
-                new Rect(Bounds.Size),
-                ResolveEnergy(player),
-                BackgroundObjectOpacity));
+            _fumeScene.Clear();
+            RenderOnce();
             return;
         }
 
-        var currentSeconds = player.CurrentPositionSeconds;
-        var overview = ShouldShowOverview(article, currentSeconds);
-        var cameraTarget = ResolveCameraTarget(
-            article,
-            player.CurrentLyricIndex,
-            currentSeconds,
-            overview);
-        if (!_hasFrameTimestamp)
-            SnapCameraIfUninitialized(cameraTarget, article);
+        EnsureArticle();
+        var article = _article;
+        if (article == null)
+        {
+            _fumeScene.Clear();
+            RenderOnce();
+            return;
+        }
 
-        context.Custom(new FumeDrawOperation(
-            new Rect(Bounds.Size),
-            new FumeFrame(
-                article,
-                _backgroundShapes,
-                currentSeconds,
-                player.CurrentLyricIndex,
-                _lastFrameTimestamp.TotalSeconds,
-                _cameraX,
-                _cameraY,
-                _cameraScale,
-                ResolveEnergy(player),
-                Math.Clamp(BackgroundObjectOpacity, 0, 1),
-                Math.Clamp(TextHoldRatio, 0, 1),
-                Math.Clamp(GlowIntensity, 0, 1.8),
-                LyricFontFamily.ToString(),
-                overview)));
+        var player = Player;
+        var seconds = player.CurrentPositionSeconds;
+        var overview = ShouldShowOverview(article, seconds);
+        if (!_hasFrameTimestamp)
+            SnapCameraIfUninitialized(
+                ResolveCameraTarget(article, player.CurrentLyricIndex, seconds, overview), article);
+        _fumeScene.Publish(new Rect(Bounds.Size), new FumeFrame(
+            article, _backgroundShapes, seconds, player.CurrentLyricIndex,
+            _lastFrameTimestamp.TotalSeconds, _cameraX, _cameraY, _cameraScale,
+            ResolveEnergy(player), Math.Clamp(BackgroundObjectOpacity, 0, 1),
+            Math.Clamp(TextHoldRatio, 0, 1), Math.Clamp(GlowIntensity, 0, 1.8),
+            LyricFontFamily.ToString(), overview));
+        RenderOnce();
     }
 
     private void EnsureArticle()
@@ -382,7 +387,7 @@ public sealed class FumeVisualizerControl : Control
             ? DateTimeOffset.UtcNow + LayoutRebuildDelay
             : DateTimeOffset.MinValue;
         _settleFrames = Math.Max(_settleFrames, 12);
-        InvalidateVisual();
+        PublishFrame();
         RequestNextFrame();
     }
 
@@ -420,7 +425,7 @@ public sealed class FumeVisualizerControl : Control
             nameof(PlayerViewModel.IsPlayingAudio))
         {
             _settleFrames = Math.Max(_settleFrames, 45);
-            InvalidateVisual();
+            PublishFrame();
             RequestNextFrame();
         }
     }
@@ -434,7 +439,7 @@ public sealed class FumeVisualizerControl : Control
     {
         if (!IsActive)
             return;
-        InvalidateVisual();
+        PublishFrame();
         RequestNextFrame();
     }
 
@@ -488,7 +493,7 @@ public sealed class FumeVisualizerControl : Control
 
         if (Player.IsPlayingAudio != true && _settleFrames > 0)
             _settleFrames--;
-        InvalidateVisual();
+        PublishFrame();
         RequestNextFrame();
     }
 
@@ -901,532 +906,4 @@ public sealed class FumeVisualizerControl : Control
     }
 
     private readonly record struct CameraTarget(double X, double Y, double Scale, int SourceIndex);
-}
-
-internal readonly record struct FumeAudioEnergy(
-    double Bass,
-    double LowMid,
-    double Mid,
-    double Vocal,
-    double Treble)
-{
-    public double At(int index) => index switch
-    {
-        0 => Bass,
-        1 => LowMid,
-        2 => Mid,
-        3 => Vocal,
-        _ => Treble
-    };
-}
-
-internal enum FumeShapeKind
-{
-    Ring,
-    Square,
-    Cross,
-    Spark
-}
-
-internal readonly record struct FumeBackgroundShape(
-    FumeShapeKind Kind,
-    double X,
-    double Y,
-    double Size,
-    double Rotation,
-    double RotationSpeed,
-    double Opacity,
-    double Depth,
-    int AudioBand);
-
-internal readonly record struct FumeFrame(
-    FumeArticleLayout Article,
-    IReadOnlyList<FumeBackgroundShape> BackgroundShapes,
-    double PlaybackSeconds,
-    int CurrentLineIndex,
-    double ClockSeconds,
-    double CameraX,
-    double CameraY,
-    double CameraScale,
-    FumeAudioEnergy Energy,
-    double BackgroundObjectOpacity,
-    double TextHoldRatio,
-    double GlowIntensity,
-    string FontFamilyName,
-    bool IsOverview);
-
-internal sealed class FumeDrawOperation(Rect bounds, FumeFrame frame) : ICustomDrawOperation
-{
-    private static readonly SKColor Primary = new(242, 235, 221);
-    private static readonly SKColor Accent = new(214, 169, 31);
-    private static readonly SKColor Secondary = new(98, 126, 145);
-    private static readonly ConcurrentDictionary<(string Family, bool Bold), SKTypeface> TypefaceCache = new();
-
-    public Rect Bounds { get; } = bounds;
-
-    public void Render(ImmediateDrawingContext context)
-    {
-        var feature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-        if (feature == null)
-            return;
-
-        using var lease = feature.Lease();
-        var canvas = lease.SkCanvas;
-        canvas.Save();
-        canvas.ClipRect(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));
-
-        DrawBackground(canvas);
-
-        canvas.Save();
-        canvas.Translate((float)(Bounds.Width * 0.5), (float)(Bounds.Height * 0.5));
-        canvas.Scale((float)frame.CameraScale);
-        canvas.Translate((float)-frame.CameraX, (float)-frame.CameraY);
-        DrawArticle(canvas);
-        canvas.Restore();
-        canvas.Restore();
-    }
-
-    public bool HitTest(Point p) => false;
-
-    public bool Equals(ICustomDrawOperation? other) => false;
-
-    public void Dispose()
-    {
-    }
-
-    private void DrawBackground(SKCanvas canvas)
-    {
-        var backgroundCenterX = frame.Article.Width * 0.5;
-        var backgroundCenterY = frame.Article.Height * 0.5;
-        var cameraX = Mix(backgroundCenterX, frame.CameraX, 0.9);
-        var cameraY = Mix(backgroundCenterY, frame.CameraY, 0.74) -
-                      Math.Clamp(Bounds.Height * 0.22 / Math.Max(frame.CameraScale, 0.001), 48, 180);
-        var scale = Math.Clamp(frame.CameraScale * 0.94, 0.22, 2.24);
-
-        canvas.Save();
-        canvas.Translate((float)(Bounds.Width * 0.5), (float)(Bounds.Height * 0.5));
-        canvas.Scale((float)scale);
-        canvas.Translate((float)-cameraX, (float)-cameraY);
-
-        using var paint = new SKPaint();
-        paint.IsAntialias = true;
-        paint.Style = SKPaintStyle.Stroke;
-        paint.StrokeCap = SKStrokeCap.Round;
-        foreach (var shape in frame.BackgroundShapes)
-            DrawShape(canvas, shape, cameraX, cameraY, paint);
-        canvas.Restore();
-    }
-
-    private void DrawShape(
-        SKCanvas canvas,
-        FumeBackgroundShape shape,
-        double cameraX,
-        double cameraY,
-        SKPaint paint)
-    {
-        var band = frame.Energy.At(shape.AudioBand);
-        var audioScale = Mix(0.95, 1.45, Math.Clamp(band, 0, 1));
-        var opacityBoost = Mix(0.85, 1.55, Math.Clamp(band, 0, 1));
-        var layerResponse = Mix(0.58, 1.16, shape.Depth);
-        var x = shape.X + (cameraX - frame.Article.Width * 0.5) * (1 - layerResponse) * 0.72;
-        var y = shape.Y + (cameraY - frame.Article.Height * 0.5) * (1 - layerResponse) * 0.72;
-        var size = shape.Size * audioScale;
-        var opacity = Math.Clamp(
-            shape.Opacity * opacityBoost * frame.BackgroundObjectOpacity * 2,
-            0,
-            0.42);
-        var color = shape.Kind is FumeShapeKind.Square or FumeShapeKind.Spark ? Accent : Secondary;
-
-        paint.StrokeWidth = shape.Kind == FumeShapeKind.Spark ? 1.15f : 1.05f;
-        paint.Color = WithAlpha(color, opacity);
-        using var sparkBlur = shape.Kind == FumeShapeKind.Spark
-            ? SKMaskFilter.CreateBlur(SKBlurStyle.Normal, (float)(3.5 * audioScale))
-            : null;
-        paint.MaskFilter = sparkBlur;
-
-        canvas.Save();
-        canvas.Translate((float)x, (float)y);
-        canvas.RotateRadians((float)(shape.Rotation + frame.ClockSeconds * shape.RotationSpeed));
-        var half = (float)(size * 0.5);
-        switch (shape.Kind)
-        {
-            case FumeShapeKind.Ring:
-                canvas.DrawArc(new SKRect(-half, -half, half, half), 18, 318, false, paint);
-                break;
-            case FumeShapeKind.Square:
-                canvas.DrawRect(new SKRect(-half, -half, half, half), paint);
-                break;
-            case FumeShapeKind.Cross:
-                DrawCross(canvas, half, paint);
-                break;
-            case FumeShapeKind.Spark:
-                DrawSpark(canvas, half, paint);
-                break;
-        }
-        canvas.Restore();
-    }
-
-    private void DrawArticle(SKCanvas canvas)
-    {
-        using var textPaint = new SKPaint();
-        textPaint.IsAntialias = true;
-        using var glowPaint = new SKPaint();
-        glowPaint.IsAntialias = true;
-        foreach (var block in frame.Article.Blocks)
-        {
-            if (!IsVisible(block))
-                continue;
-            DrawBlock(canvas, block, textPaint, glowPaint);
-        }
-    }
-
-    private bool IsVisible(FumeArticleBlock block)
-    {
-        const double overscan = 180;
-        var left = Bounds.Width * 0.5 + (block.X - frame.CameraX) * frame.CameraScale;
-        var top = Bounds.Height * 0.5 + (block.Y - frame.CameraY) * frame.CameraScale;
-        var right = left + block.Width * frame.CameraScale;
-        var bottom = top + block.Height * frame.CameraScale;
-        return right >= -overscan &&
-               left <= Bounds.Width + overscan &&
-               bottom >= -overscan &&
-               top <= Bounds.Height + overscan;
-    }
-
-    private void DrawBlock(
-        SKCanvas canvas,
-        FumeArticleBlock block,
-        SKPaint paint,
-        SKPaint glowPaint)
-    {
-        var typeface = TypefaceCache.GetOrAdd(
-            (block.TypefaceFamily, block.IsHero),
-            static key => SKTypeface.FromFamilyName(
-                              key.Family,
-                              key.Bold ? SKFontStyleWeight.SemiBold : SKFontStyleWeight.Normal,
-                              SKFontStyleWidth.Normal,
-                              SKFontStyleSlant.Upright) ??
-                          SKTypeface.Default);
-        using var font = new SKFont(typeface, (float)block.FontSize);
-        var lineStart = block.Line.Start.TotalSeconds;
-        var lineEnd = lineStart + Math.Max(block.Line.Duration.TotalSeconds, 0.12);
-        var lineDuration = Math.Max(lineEnd - lineStart, 0.18);
-        var trailDuration = Math.Clamp(lineDuration * (block.IsHero ? 0.42 : 0.52), 0.45, 1.45);
-        var waitingOpacity = block.IsHero ? 0.06 : 0.035;
-        var activeOpacity = block.IsHero ? 0.985 : 0.92;
-        var passedOpacity = block.IsHero ? 0.74 : 0.58;
-        var isCurrentLine = block.SourceLineIndex == frame.CurrentLineIndex;
-        var isHoldingCurrentLine = isCurrentLine && frame.PlaybackSeconds >= lineEnd;
-
-        if (frame.PlaybackSeconds < lineStart)
-        {
-            DrawStaticBlock(canvas, block, font, paint, WithAlpha(Primary, waitingOpacity));
-            return;
-        }
-
-        if (!isHoldingCurrentLine && frame.PlaybackSeconds >= lineEnd + trailDuration)
-        {
-            var opacity = passedOpacity;
-            if (frame is { TextHoldRatio: < 1, IsOverview: false })
-            {
-                var totalDuration = Math.Clamp(
-                    (frame.Article.LastEndSeconds - frame.Article.FirstStartSeconds) * frame.TextHoldRatio,
-                    2.4,
-                    130);
-                var dim = EaseInCubic(Math.Clamp(
-                    (frame.PlaybackSeconds - lineEnd - trailDuration) / totalDuration,
-                    0,
-                    1));
-                opacity = Mix(passedOpacity, block.IsHero ? 0.11 : 0.075, dim);
-            }
-            DrawStaticBlock(canvas, block, font, paint, WithAlpha(Primary, opacity));
-            return;
-        }
-
-        var printedProgress = ResolvePrintedProgress(block);
-        var hasTimedWords = HasTimedWordRanges(block);
-        using var glowMask = frame.GlowIntensity > 0
-            ? SKMaskFilter.CreateBlur(
-                SKBlurStyle.Normal,
-                (float)((3 + block.FontSize * 0.12) * frame.GlowIntensity))
-            : null;
-        glowPaint.MaskFilter = glowMask;
-        for (var lineIndex = 0; lineIndex < block.RenderLines.Count; lineIndex++)
-        {
-            var renderLine = block.RenderLines[lineIndex];
-            var baseline = block.Y + lineIndex * block.LineHeight + block.LineHeight * 0.78;
-            paint.Color = WithAlpha(Primary, waitingOpacity);
-            paint.MaskFilter = null;
-            canvas.DrawText(renderLine.Text, (float)block.X, (float)baseline, font, paint);
-            for (var glyphIndex = renderLine.Start; glyphIndex < renderLine.End; glyphIndex++)
-            {
-                var glyph = block.Graphemes[glyphIndex];
-                if (string.IsNullOrEmpty(glyph))
-                    continue;
-                var x = block.X + block.GlyphOffsets[glyphIndex] - block.GlyphOffsets[renderLine.Start];
-                var rangeIndex = glyphIndex < block.WordRangeByGlyph.Count
-                    ? block.WordRangeByGlyph[glyphIndex]
-                    : -1;
-                ResolveGlyphTiming(
-                    block,
-                    glyphIndex,
-                    hasTimedWords ? rangeIndex : -1,
-                    out var glyphStart,
-                    out var glyphEnd);
-                var glyphDuration = Math.Max(glyphEnd - glyphStart, 0.001);
-                var glyphProgress = Math.Clamp(
-                    (frame.PlaybackSeconds - glyphStart) / glyphDuration,
-                    0,
-                    1);
-                var trailStart = glyphStart + glyphDuration * 0.18;
-                var trail = Math.Pow(Math.Clamp(
-                    (frame.PlaybackSeconds - trailStart) / trailDuration,
-                    0,
-                    1), 1.35);
-
-                var playedFraction = ResolvePlayedFraction(
-                    block,
-                    glyphIndex,
-                    hasTimedWords ? rangeIndex : -1,
-                    printedProgress);
-                if (playedFraction <= 0)
-                    continue;
-
-                var color = MixColor(Accent, Primary, 0.18 + trail * 0.82);
-                var glyphWidth = Math.Max(
-                    block.GlyphOffsets[glyphIndex + 1] - block.GlyphOffsets[glyphIndex],
-                    block.FontSize * 0.08);
-
-                if (frame.GlowIntensity > 0)
-                {
-                    glowPaint.Color = WithAlpha(
-                        color,
-                        (0.36 + glyphProgress * 0.36) *
-                        EaseOutCubic(playedFraction) *
-                        (1 - trail * 0.55));
-                    canvas.DrawText(glyph, (float)x, (float)baseline, font, glowPaint);
-                }
-
-                var saveCount = canvas.Save();
-                canvas.ClipRect(new SKRect(
-                    (float)x,
-                    (float)(baseline - block.LineHeight),
-                    (float)(x + glyphWidth * playedFraction),
-                    (float)(baseline + block.LineHeight * 0.25)));
-                paint.Color = WithAlpha(color, activeOpacity);
-                paint.MaskFilter = null;
-                canvas.DrawText(glyph, (float)x, (float)baseline, font, paint);
-                canvas.RestoreToCount(saveCount);
-
-            }
-        }
-    }
-
-    private static void DrawStaticBlock(
-        SKCanvas canvas,
-        FumeArticleBlock block,
-        SKFont font,
-        SKPaint paint,
-        SKColor color)
-    {
-        paint.Color = color;
-        paint.MaskFilter = null;
-        for (var lineIndex = 0; lineIndex < block.RenderLines.Count; lineIndex++)
-        {
-            var line = block.RenderLines[lineIndex];
-            var baseline = block.Y + lineIndex * block.LineHeight + block.LineHeight * 0.78;
-            canvas.DrawText(line.Text, (float)block.X, (float)baseline, font, paint);
-        }
-    }
-
-    private double ResolvePrintedProgress(FumeArticleBlock block)
-    {
-        var start = block.Line.Start.TotalSeconds;
-        var end = start + Math.Max(block.Line.Duration.TotalSeconds, 0.12);
-        if (frame.PlaybackSeconds <= start)
-            return 0;
-        if (frame.PlaybackSeconds >= end)
-            return block.Graphemes.Count;
-        if (!HasTimedWordRanges(block))
-            return Math.Clamp((frame.PlaybackSeconds - start) / (end - start), 0, 1) *
-                   block.Graphemes.Count;
-
-        var printed = 0d;
-        foreach (var range in block.WordRanges)
-        {
-            if (range.End <= range.Start || range.EndSeconds <= range.StartSeconds)
-                continue;
-            if (frame.PlaybackSeconds < range.StartSeconds)
-                return printed;
-            var progress = Math.Clamp(
-                (frame.PlaybackSeconds - range.StartSeconds) /
-                (range.EndSeconds - range.StartSeconds),
-                0,
-                1);
-            printed = range.Start + (range.End - range.Start) * progress;
-            if (progress < 1)
-                return printed;
-        }
-        return printed;
-    }
-
-    private static bool HasTimedWordRanges(FumeArticleBlock block)
-    {
-        foreach (var range in block.WordRanges)
-        {
-            if (range.End > range.Start && range.EndSeconds > range.StartSeconds)
-                return true;
-        }
-
-        return false;
-    }
-
-    private double ResolvePlayedFraction(
-        FumeArticleBlock block,
-        int glyphIndex,
-        int rangeIndex,
-        double printedProgress)
-    {
-        if (rangeIndex < 0 ||
-            rangeIndex >= block.WordRanges.Count ||
-            block.WordRanges[rangeIndex].EndSeconds <= block.WordRanges[rangeIndex].StartSeconds)
-        {
-            return Math.Clamp(printedProgress - glyphIndex, 0, 1);
-        }
-
-        var range = block.WordRanges[rangeIndex];
-        var rangeStart = block.GlyphOffsets[range.Start];
-        var rangeEnd = block.GlyphOffsets[range.End];
-        var rangeWidth = Math.Max(rangeEnd - rangeStart, 0.001);
-        var rangeProgress = Math.Clamp(
-            (frame.PlaybackSeconds - range.StartSeconds) /
-            (range.EndSeconds - range.StartSeconds),
-            0,
-            1);
-        var playedOffset = rangeStart + rangeWidth * rangeProgress;
-        var glyphStart = block.GlyphOffsets[glyphIndex];
-        var glyphEnd = block.GlyphOffsets[glyphIndex + 1];
-        return Math.Clamp(
-            (playedOffset - glyphStart) / Math.Max(glyphEnd - glyphStart, 0.001),
-            0,
-            1);
-    }
-
-    private static void ResolveGlyphTiming(
-        FumeArticleBlock block,
-        int glyphIndex,
-        int rangeIndex,
-        out double start,
-        out double end)
-    {
-        if (rangeIndex < 0 || rangeIndex >= block.WordRanges.Count)
-        {
-            var lineStart = block.Line.Start.TotalSeconds;
-            var lineDuration = Math.Max(block.Line.Duration.TotalSeconds, 0.12);
-            var count = Math.Max(block.Graphemes.Count, 1);
-            start = lineStart + glyphIndex / (double)count * lineDuration;
-            end = lineStart + (glyphIndex + 1d) / count * lineDuration;
-            return;
-        }
-
-        var range = block.WordRanges[rangeIndex];
-        var duration = Math.Max(range.EndSeconds - range.StartSeconds, 0.08);
-        var rangeStart = block.GlyphOffsets[range.Start];
-        var rangeWidth = Math.Max(block.GlyphOffsets[range.End] - rangeStart, 0.001);
-        var glyphStart = block.GlyphOffsets[glyphIndex];
-        var glyphEnd = block.GlyphOffsets[glyphIndex + 1];
-        start = range.StartSeconds + (glyphStart - rangeStart) / rangeWidth * duration;
-        end = range.StartSeconds + (glyphEnd - rangeStart) / rangeWidth * duration;
-    }
-
-    private static void DrawCross(SKCanvas canvas, float half, SKPaint paint)
-    {
-        var arm = half * 0.6f;
-        using var path = new SKPath();
-        path.MoveTo(-arm, -half);
-        path.LineTo(arm, -half);
-        path.LineTo(arm, -arm);
-        path.LineTo(half, -arm);
-        path.LineTo(half, arm);
-        path.LineTo(arm, arm);
-        path.LineTo(arm, half);
-        path.LineTo(-arm, half);
-        path.LineTo(-arm, arm);
-        path.LineTo(-half, arm);
-        path.LineTo(-half, -arm);
-        path.LineTo(-arm, -arm);
-        path.Close();
-        canvas.DrawPath(path, paint);
-    }
-
-    private static void DrawSpark(SKCanvas canvas, float half, SKPaint paint)
-    {
-        var inner = half * 0.26f;
-        using var path = new SKPath();
-        path.MoveTo(0, -half);
-        path.LineTo(inner, -inner);
-        path.LineTo(half, 0);
-        path.LineTo(inner, inner);
-        path.LineTo(0, half);
-        path.LineTo(-inner, inner);
-        path.LineTo(-half, 0);
-        path.LineTo(-inner, -inner);
-        path.Close();
-        canvas.DrawPath(path, paint);
-    }
-
-    private static SKColor WithAlpha(SKColor color, double opacity) =>
-        color.WithAlpha((byte)Math.Round(Math.Clamp(opacity, 0, 1) * 255));
-
-    private static SKColor MixColor(SKColor from, SKColor to, double amount)
-    {
-        var t = Math.Clamp(amount, 0, 1);
-        return new SKColor(
-            (byte)Math.Round(Mix(from.Red, to.Red, t)),
-            (byte)Math.Round(Mix(from.Green, to.Green, t)),
-            (byte)Math.Round(Mix(from.Blue, to.Blue, t)));
-    }
-
-    private static double Mix(double from, double to, double amount) =>
-        from + (to - from) * amount;
-
-    private static double EaseOutCubic(double value) =>
-        1 - Math.Pow(1 - Math.Clamp(value, 0, 1), 3);
-
-    private static double EaseInCubic(double value) =>
-        Math.Pow(Math.Clamp(value, 0, 1), 3);
-}
-
-internal sealed class EmptyFumeDrawOperation(
-    Rect bounds,
-    FumeAudioEnergy energy,
-    double opacity) : ICustomDrawOperation
-{
-    public Rect Bounds { get; } = bounds;
-
-    public void Render(ImmediateDrawingContext context)
-    {
-        var feature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-        if (feature == null)
-            return;
-        using var lease = feature.Lease();
-        var canvas = lease.SkCanvas;
-        using var paint = new SKPaint();
-        paint.IsAntialias = true;
-        paint.Style = SKPaintStyle.Stroke;
-        paint.StrokeWidth = 1.2f;
-        paint.Color = new SKColor(214, 169, 31, (byte)(40 * Math.Clamp(opacity, 0, 1)));
-        var pulse = 1 + energy.Mid * 0.12;
-        canvas.DrawCircle(
-            (float)(Bounds.Width * 0.5),
-            (float)(Bounds.Height * 0.5),
-            (float)(Math.Min(Bounds.Width, Bounds.Height) * 0.11 * pulse),
-            paint);
-    }
-
-    public bool HitTest(Point p) => false;
-    public bool Equals(ICustomDrawOperation? other) => false;
-    public void Dispose()
-    {
-    }
 }

@@ -303,6 +303,13 @@ public sealed class EffectTextureCache : IDisposable
         }
     }
 
+    /// <summary>Releases a cached texture. Call only inside the owning GL lifecycle.</summary>
+    public void Release(EffectTexture texture)
+    {
+        if (_ownedTextures.Contains(texture))
+            Remove(texture);
+    }
+
     private void Remove(EffectTexture texture)
     {
         foreach (var key in _textTextures.AsValueEnumerable().Where(pair => ReferenceEquals(pair.Value, texture)).Select(pair => pair.Key).ToArray())

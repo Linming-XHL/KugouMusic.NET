@@ -74,6 +74,7 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
         NowPlayingThemePresetRegistry.Presets;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFoliaBackgroundActive))]
     public partial bool IsOpen { get; set; }
 
     [ObservableProperty]
@@ -132,6 +133,7 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(IsPendoloTheme))]
     [NotifyPropertyChangedFor(nameof(IsFumeTheme))]
     [NotifyPropertyChangedFor(nameof(IsSonnetTheme))]
+    [NotifyPropertyChangedFor(nameof(IsFoliaBackgroundActive))]
     [NotifyPropertyChangedFor(nameof(IsStandardLayoutVisible))]
     [NotifyPropertyChangedFor(nameof(CurrentThemePresetName))]
     public partial NowPlayingThemePreset SelectedThemePreset { get; set; } =
@@ -211,6 +213,8 @@ public partial class NowPlayingViewModel : ViewModelBase, IDisposable
     public bool IsFumeTheme => SelectedThemePreset == NowPlayingThemePreset.Fume;
 
     public bool IsSonnetTheme => SelectedThemePreset == NowPlayingThemePreset.Sonnet;
+
+    public bool IsFoliaBackgroundActive => IsOpen && (IsFumeTheme || IsSonnetTheme);
 
     public bool IsStandardLayoutVisible => IsStandardTheme && !HasPortraitBackground;
 

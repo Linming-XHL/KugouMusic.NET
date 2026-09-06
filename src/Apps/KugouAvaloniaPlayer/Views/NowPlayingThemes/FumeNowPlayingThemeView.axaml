@@ -35,30 +35,10 @@
     </UserControl.Styles>
 
     <Grid ClipToBounds="True">
-        <!-- Keep the shared blurred cover, but make Fume's ivory/gold text readable. -->
-        <Border IsHitTestVisible="False">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                    <GradientStop Color="#D7080E1B" Offset="0" />
-                    <GradientStop Color="#B7101A31" Offset="0.48" />
-                    <GradientStop Color="#E3080C16" Offset="1" />
-                </LinearGradientBrush>
-            </Border.Background>
-        </Border>
-        <Border IsHitTestVisible="False">
-            <Border.Background>
-                <RadialGradientBrush Center="50%,42%"
-                                     GradientOrigin="50%,42%"
-                                     RadiusX="75%"
-                                     RadiusY="68%">
-                    <GradientStop Color="#00131C32" Offset="0" />
-                    <GradientStop Color="#5A080C16" Offset="0.68" />
-                    <GradientStop Color="#C6080A10" Offset="1" />
-                </RadialGradientBrush>
-            </Border.Background>
-        </Border>
+        <!-- The shared latent GL layer owns material and darkening. -->
 
         <controls:FumeVisualizerControl
+            x:Name="FumeSurface"
             Player="{Binding Player}"
             IsActive="{Binding IsOpen}"
             LyricFontFamily="{Binding LyricFontFamily}"
@@ -74,6 +54,16 @@
             ParallaxOriginX="{Binding FumeParallaxTuning.OriginX}"
             ParallaxOriginY="{Binding FumeParallaxTuning.OriginY}"
             IsHitTestVisible="False" />
+
+        <TextBlock Text="{Binding #FumeSurface.LastError}"
+                   Foreground="#FFFFD4C4"
+                   Background="#E0201010"
+                   TextWrapping="Wrap"
+                   MaxWidth="720"
+                   Margin="24"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Top"
+                   IsHitTestVisible="False" />
 
         <TextBlock Text="等待歌词排版"
                    FontSize="16"

@@ -53,6 +53,8 @@ public sealed class EffectPrimitiveRenderer : IDisposable
     internal int FrameFlushes { get; private set; }
     internal long FrameUploadedBytes { get; private set; }
 
+    internal void RecordExternalDrawCalls(int count) => FrameDrawCalls += count;
+
     internal unsafe EffectPrimitiveRenderer(GL gl)
     {
         _gl = gl;
@@ -214,6 +216,30 @@ public sealed class EffectPrimitiveRenderer : IDisposable
         EffectColor color,
         EffectBlendMode blendMode = EffectBlendMode.Alpha) =>
         DrawQuad(transform, size, color, blendMode, _whiteTexture);
+
+    /// <summary>Draws a horizontal slice without a scissor change or batch flush.</summary>
+    public void DrawTextureSlice(EffectTexture texture, Matrix3x2 transform,
+        float left, float right, EffectColor tint)
+    {
+        var size = texture.LogicalSize;
+        left = Math.Clamp(left, 0, size.X);
+        right = Math.Clamp(right, left, size.X);
+        if (right <= left) return;
+        Select(texture.Handle, EffectBlendMode.Alpha);
+        var a = Vector2.Transform(new Vector2(left, 0), transform);
+        var b = Vector2.Transform(new Vector2(right, 0), transform);
+        var c = Vector2.Transform(new Vector2(right, size.Y), transform);
+        var d = Vector2.Transform(new Vector2(left, size.Y), transform);
+        var color = tint.Premultiplied().ToVector4();
+        var u0 = left / size.X;
+        var u1 = right / size.X;
+        _vertices.Add(new EffectVertex(a, new Vector2(u0, 0), color));
+        _vertices.Add(new EffectVertex(b, new Vector2(u1, 0), color));
+        _vertices.Add(new EffectVertex(c, new Vector2(u1, 1), color));
+        _vertices.Add(new EffectVertex(a, new Vector2(u0, 0), color));
+        _vertices.Add(new EffectVertex(c, new Vector2(u1, 1), color));
+        _vertices.Add(new EffectVertex(d, new Vector2(u0, 1), color));
+    }
 
     public void DrawLine(
         Matrix3x2 transform,
