@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace AvaloniaSilkEffects.Sonnet;
@@ -81,7 +82,10 @@ public static partial class SonnetProgramCompiler
         if (string.IsNullOrEmpty(line.FullText)) return [];
         var graphemes = SplitGraphemes(line.FullText);
         var timeline = BuildTimeline(line, graphemes);
-        var raw = BuildWordParts(line.FullText);
+
+        var raw = line.Words.Count > 0
+            ? BuildTimedWordParts(timeline)
+            : BuildWordPartsFallback(line.FullText, graphemes);
         var segments = new List<SonnetSemanticSegment>();
         foreach (var part in raw)
         {
@@ -252,22 +256,151 @@ public static partial class SonnetProgramCompiler
         return result;
     }
 
-    private static IReadOnlyList<Part> BuildWordParts(string text)
+   private static IReadOnlyList<Part> BuildTimedWordParts(
+    IReadOnlyList<TimelineItem> timeline)
+{
+    if (timeline.Count == 0)
+        return [];
+
+    var result = new List<Part>();
+
+    var start = timeline[0].StartOffset;
+    var end = timeline[0].EndOffset;
+    var wordIndex = timeline[0].Timing.WordIndex;
+
+    for (var i = 1; i < timeline.Count; i++)
     {
-        // Folia uses Intl.Segmenter with word granularity. Unicode letter runs
-        // collapse unspaced CJK lyrics into one word and bias shots toward quiet-tableau.
-        // Keep the iterator local: it is mutable and compilation may run concurrently.
-        var iterator = ICU4N.Text.BreakIterator.GetWordInstance(CultureInfo.InvariantCulture);
-        iterator.SetText(text);
-        var parts = new List<Part>();
-        var start = iterator.First();
-        for (var end = iterator.Next(); end != ICU4N.Text.BreakIterator.Done; end = iterator.Next())
+        var item = timeline[i];
+
+        if (item.Timing.WordIndex == wordIndex)
         {
-            parts.Add(new Part(start, end, iterator.RuleStatus >= ICU4N.Text.BreakIterator.WordNoneLimit));
-            start = end;
+            end = item.EndOffset;
+            continue;
         }
-        return parts;
+
+        result.Add(new Part(
+            start,
+            end,
+            wordIndex.HasValue));
+
+        start = item.StartOffset;
+        end = item.EndOffset;
+        wordIndex = item.Timing.WordIndex;
     }
+
+    result.Add(new Part(
+        start,
+        end,
+        wordIndex.HasValue));
+
+    return result;
+}
+
+private static IReadOnlyList<Part> BuildWordPartsFallback(
+    string text,
+    IReadOnlyList<RangeText> graphemes)
+{
+    if (graphemes.Count == 0)
+        return [];
+
+    var result = new List<Part>();
+
+    var runStart = -1;
+    var runEnd = -1;
+
+    void FlushRun()
+    {
+        if (runStart < 0)
+            return;
+
+        result.Add(new Part(
+            runStart,
+            runEnd,
+            true));
+
+        runStart = -1;
+        runEnd = -1;
+    }
+
+    foreach (var grapheme in graphemes)
+    {
+        var rune = Rune.GetRuneAt(text, grapheme.Start);
+
+        // 中文、平假名、片假名通常没有空格。
+        // 对 Sonnet 来说这里要的是视觉语义单元，而不是严格的 NLP 分词，
+        // 因此按 grapheme 分割比把整句中文视为一个单词更合适。
+        if (IsCjkWordUnit(rune))
+        {
+            FlushRun();
+
+            result.Add(new Part(
+                grapheme.Start,
+                grapheme.End,
+                true));
+
+            continue;
+        }
+
+        var category = Rune.GetUnicodeCategory(rune);
+
+        var wordLike =
+            Rune.IsLetterOrDigit(rune) ||
+            category is
+                UnicodeCategory.NonSpacingMark or
+                UnicodeCategory.SpacingCombiningMark or
+                UnicodeCategory.EnclosingMark;
+
+        if (wordLike)
+        {
+            if (runStart < 0)
+                runStart = grapheme.Start;
+
+            runEnd = grapheme.End;
+            continue;
+        }
+
+        FlushRun();
+
+        result.Add(new Part(
+            grapheme.Start,
+            grapheme.End,
+            false));
+    }
+
+    FlushRun();
+
+    return result;
+}
+
+private static bool IsCjkWordUnit(Rune rune)
+{
+    var value = rune.Value;
+
+    return value is
+        // CJK Unified Ideographs Extension A
+        >= 0x3400 and <= 0x4DBF or
+
+        // CJK Unified Ideographs
+        >= 0x4E00 and <= 0x9FFF or
+
+        // CJK Compatibility Ideographs
+        >= 0xF900 and <= 0xFAFF or
+
+        // CJK Extensions B-I
+        >= 0x20000 and <= 0x323AF or
+
+        // Hiragana
+        >= 0x3040 and <= 0x309F or
+
+        // Katakana
+        >= 0x30A0 and <= 0x30FF or
+
+        // Katakana Phonetic Extensions
+        >= 0x31F0 and <= 0x31FF or
+
+        // Halfwidth Katakana
+        >= 0xFF66 and <= 0xFF9D;
+}
 
     private static IReadOnlyList<RangeText> SplitGraphemes(string text)
     {
