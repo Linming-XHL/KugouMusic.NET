@@ -48,7 +48,7 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <ScrollViewer Grid.Row="1" Padding="0,0,0,-50">
+            <ScrollViewer Grid.Row="1" Padding="0,0,0,50">
                 <ItemsControl ItemsSource="{Binding RankSections}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:RankSection">

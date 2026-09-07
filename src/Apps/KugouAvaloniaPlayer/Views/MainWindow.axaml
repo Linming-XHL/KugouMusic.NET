@@ -219,6 +219,7 @@
         <Grid Name="TitleBar"
               ColumnDefinitions="48,*,Auto"
               Height="36"
+              Margin="216,0,0,0"
               Background="Transparent"
               VerticalAlignment="Top"
               IsVisible="{Binding !NowPlaying.IsOpen}"
