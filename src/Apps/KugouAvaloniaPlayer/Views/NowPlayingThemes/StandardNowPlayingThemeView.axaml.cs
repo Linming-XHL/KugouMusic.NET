@@ -126,6 +126,18 @@ public partial class StandardNowPlayingThemeView : UserControl
         _moreFlyout?.Hide();
     }
 
+    private void AddCurrentSongToPlaylist_OnTapped(object? sender, TappedEventArgs e)
+    {
+        if (DataContext is NowPlayingViewModel viewModel &&
+            viewModel.AddCurrentSongToPlaylistCommand.CanExecute(null))
+        {
+            viewModel.AddCurrentSongToPlaylistCommand.Execute(null);
+        }
+
+        HideMoreFlyout();
+        e.Handled = true;
+    }
+
     private void DetachMoreFlyoutLightDismissHandler()
     {
         _moreFlyoutLightDismissTopLevel?.RemoveHandler(
