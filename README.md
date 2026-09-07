@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/Apps/KugouAvaloniaPlayer/Assets/Test.png" alt="KA Music Logo" width="128" />
+  <img src="src/Apps/KugouAvaloniaPlayer/Assets/ka-logo.png" alt="KA Music Logo" width="128" />
 
   <h1>KA Music</h1>
 
