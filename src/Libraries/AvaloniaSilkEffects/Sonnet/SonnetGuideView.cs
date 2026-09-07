@@ -11,6 +11,7 @@ internal sealed class SonnetGuideView
     private readonly ShapeNode _leadCore;
     private readonly List<TrailView> _trails = [];
     private readonly List<BurstView> _bursts = [];
+    private readonly SplineView? _spline;
 
     internal SonnetGuideView(SonnetSemanticSegment segment, SonnetTypographyPlacement placement,
         float fontSize, SonnetTheme theme, uint seed)
@@ -50,6 +51,25 @@ internal sealed class SonnetGuideView
                 new Vector2(-fontSize * 2, d * fontSize * 1.8f),
                 new Vector2(fontSize * 2, -d * fontSize * 1.8f),
                 Hash(seed, 1, 0x7113) * 0.1f, color, hero);
+        }
+
+        // Folia's short rectangular sweep adds a second, crisp rhythm beside the
+        // curved silk trails. Use seeded choices so seeking never changes it.
+        if (Hash(seed, 0, 0x7131) > 0.4f)
+        {
+            var length = fontSize * (1.2f + Hash(seed, 0, 0x7132) * 1.5f);
+            var thickness = (hero ? 6 : 3) + Hash(seed, 0, 0x7133) * 8;
+            var angle = (Hash(seed, 0, 0x7134) - 0.5f) * MathF.PI;
+            var origin = new Vector2(Hash(seed, 0, 0x7135) - 0.5f,
+                Hash(seed, 0, 0x7136) - 0.5f) * fontSize * 1.2f;
+            var delta = new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * length;
+            var body = new ShapeNode { Shape = EffectShapeKind.Line, StrokeWidth = thickness,
+                Color = color with { A = (hero ? 0.82f : 0.55f) * 0.7f }, IsVisible = false };
+            var core = new ShapeNode { Shape = EffectShapeKind.Line, StrokeWidth = thickness * 0.3f,
+                Color = EffectColor.White with { A = (hero ? 0.82f : 0.55f) * 0.9f }, IsVisible = false };
+            Root.Add(body).Add(core);
+            _spline = new SplineView(body, core, origin, delta,
+                Hash(seed, 0, 0x7137) * 0.15, 0.25 + Hash(seed, 0, 0x7138) * 0.2);
         }
 
         var burstCount = hero ? 6 : 3;
@@ -92,9 +112,22 @@ internal sealed class SonnetGuideView
             UpdateCurve(trail.Line, tailT, headT, visible ? (float)fadeOut : 0);
             var head = Point(trail.Line, headT);
             SetHead(trail.Head, head, visible && headT is > 0 and < 1, (float)fadeOut);
+            SetHead(trail.Core, head, visible && headT is > 0 and < 1, (float)fadeOut);
             trail.Ring.Position = head;
             trail.Ring.IsVisible = visible && headT is > 0 and < 1;
             trail.Ring.Alpha = (float)fadeOut * 0.4f;
+        }
+
+        if (_spline is { } spline)
+        {
+            var local = (p - spline.Delay) / spline.Duration;
+            var headT = (float)Clamp01(local * 1.5);
+            var tailT = (float)Clamp01((local - 0.3) * 1.5);
+            var visible = local > 0 && local < 1.3 && fadeOut > 0 && headT > tailT;
+            spline.Body.IsVisible = spline.Core.IsVisible = visible;
+            spline.Body.Position = spline.Core.Position = spline.Origin + spline.Delta * tailT;
+            spline.Body.Size = spline.Core.Size = spline.Delta * (headT - tailT);
+            spline.Body.Alpha = spline.Core.Alpha = (float)fadeOut;
         }
 
         var burstProgress = Clamp01((p - 0.3) / 0.7);
@@ -114,9 +147,10 @@ internal sealed class SonnetGuideView
     {
         var line = Curve(p0, p1, p2, p3, color, hero);
         var head = Circle(hero ? 7 : 4, color with { A = 0.9f });
+        var core = Circle(hero ? 2.5f : 1.5f, EffectColor.White);
         var ring = Ring(hero ? 20 : 12, color, hero ? 2 : 1);
-        Root.Add(line).Add(ring).Add(head);
-        _trails.Add(new TrailView(line, head, ring, delay));
+        Root.Add(line).Add(ring).Add(head).Add(core);
+        _trails.Add(new TrailView(line, head, core, ring, delay));
     }
 
     private static PolylineNode Curve(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3,
@@ -191,6 +225,8 @@ internal sealed class SonnetGuideView
             root.Add(new ShapeNode { Shape = EffectShapeKind.Ellipse, Position = new Vector2(-size), Size = new Vector2(size * 2), Color = color });
         else if (kind == 1)
             root.Add(new ShapeNode { Position = new Vector2(-size), Size = new Vector2(size * 2), Color = color });
+        else if (kind == 3)
+            root.Add(new PolygonNode { Points = [new(0, -size), new(size, 0), new(0, size), new(-size, 0)], Color = color });
         else
         {
             root.Add(new ShapeNode { Shape = EffectShapeKind.Line, Position = new Vector2(-size, 0), Size = new Vector2(size * 2, 0), StrokeWidth = 2, Color = color });
@@ -208,6 +244,7 @@ internal sealed class SonnetGuideView
         return a * (mt * mt * mt) + b * (3 * mt * mt * t) + c * (3 * mt * t * t) + d * (t * t * t);
     }
 
-    private sealed record TrailView(PolylineNode Line, ShapeNode Head, EffectContainer Ring, float Delay);
+    private sealed record TrailView(PolylineNode Line, ShapeNode Head, ShapeNode Core, EffectContainer Ring, float Delay);
+    private sealed record SplineView(ShapeNode Body, ShapeNode Core, Vector2 Origin, Vector2 Delta, double Delay, double Duration);
     private sealed record BurstView(EffectContainer Node, float Angle, float Speed, float RotationSpeed);
 }

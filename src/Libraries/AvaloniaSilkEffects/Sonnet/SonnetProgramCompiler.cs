@@ -81,7 +81,7 @@ public static partial class SonnetProgramCompiler
         if (string.IsNullOrEmpty(line.FullText)) return [];
         var graphemes = SplitGraphemes(line.FullText);
         var timeline = BuildTimeline(line, graphemes);
-        var raw = BuildWordParts(line.FullText, graphemes);
+        var raw = BuildWordParts(line.FullText);
         var segments = new List<SonnetSemanticSegment>();
         foreach (var part in raw)
         {
@@ -252,24 +252,20 @@ public static partial class SonnetProgramCompiler
         return result;
     }
 
-    private static IReadOnlyList<Part> BuildWordParts(string text, IReadOnlyList<RangeText> graphemes)
+    private static IReadOnlyList<Part> BuildWordParts(string text)
     {
+        // Folia uses Intl.Segmenter with word granularity. Unicode letter runs
+        // collapse unspaced CJK lyrics into one word and bias shots toward quiet-tableau.
+        // Keep the iterator local: it is mutable and compilation may run concurrently.
+        var iterator = ICU4N.Text.BreakIterator.GetWordInstance(CultureInfo.InvariantCulture);
+        iterator.SetText(text);
         var parts = new List<Part>();
-        var start = 0;
-        bool? currentWord = null;
-        foreach (var range in graphemes)
+        var start = iterator.First();
+        for (var end = iterator.Next(); end != ICU4N.Text.BreakIterator.Done; end = iterator.Next())
         {
-            var wordLike = range.Text.Any(char.IsLetterOrDigit);
-            var whitespace = range.Text.All(char.IsWhiteSpace);
-            var group = whitespace ? false : wordLike;
-            if (currentWord.HasValue && group != currentWord.Value)
-            {
-                parts.Add(new Part(start, range.Start, currentWord.Value));
-                start = range.Start;
-            }
-            currentWord = group;
+            parts.Add(new Part(start, end, iterator.RuleStatus >= ICU4N.Text.BreakIterator.WordNoneLimit));
+            start = end;
         }
-        parts.Add(new Part(start, text.Length, currentWord ?? false));
         return parts;
     }
 

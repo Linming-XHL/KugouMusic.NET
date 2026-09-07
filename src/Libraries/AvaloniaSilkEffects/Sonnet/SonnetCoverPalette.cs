@@ -1,3 +1,5 @@
+using ZLinq;
+
 namespace AvaloniaSilkEffects.Sonnet;
 
 public static class SonnetCoverPalette
@@ -46,7 +48,7 @@ public static class SonnetCoverPalette
             for (var c = 1; c < 3; c++)
                 if (Range(source, c) > Range(source, channel)) channel = c;
             // OrderBy preserves source order for ties, as JavaScript's stable sort does.
-            var sorted = source.OrderBy(s => s.Channel(channel)).ToList();
+            var sorted = source.AsValueEnumerable().OrderBy(s => s.Channel(channel)).ToList();
             var midpoint = source.Sum(s => s.Weight) / 2d;
             long accumulated = 0;
             var split = 1;

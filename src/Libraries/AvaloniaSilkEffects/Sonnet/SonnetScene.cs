@@ -126,7 +126,10 @@ public sealed class SonnetScene : EffectScene
         {
             var shot = paragraph.Shots[shotIndex];
             var lines = paragraph.Lines.Where(item => shot.LineIndices.Contains(item.SourceIndex)).ToArray();
-            var segmentsByLine = lines.Select(item => (IReadOnlyList<SonnetSemanticSegment>)item.Segments).ToArray();
+            var segmentsByLine = lines
+                .Select(item => (IReadOnlyList<SonnetSemanticSegment>)item.Segments
+                    .Where(segment => !string.IsNullOrWhiteSpace(segment.Text)).ToArray())
+                .Where(segments => segments.Count > 0).ToArray();
             var segments = segmentsByLine.SelectMany(item => item).ToArray();
             var wordCount = Math.Max(1, segments.Count(item => item.IsWordLike));
             var heroScale = shot.Kind == SonnetShotKind.TypeImpact ? 1.55f : shot.Kind == SonnetShotKind.QuietTableau ? 0.82f : 1;

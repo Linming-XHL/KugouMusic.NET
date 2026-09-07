@@ -334,6 +334,12 @@ internal static partial class SonnetMgBuilder
         EffectContainer root, SonnetTheme theme, float width, float height, float radius, uint seed)
     {
         var geoVariant = (int)(seed % SonnetVariantResolver.GeometryVariantCount);
+        if (geoVariant >= 48)
+        {
+            root.Add(SonnetExtendedDrawLists.Build(geoVariant, width, height, seed,
+                ToRgb(theme.Primary), ToRgb(theme.Secondary)).Replay(48));
+            return;
+        }
         if (geoVariant is >= 24 and <= 35)
         {
             BuildThemedGeometry(root, theme, width, height, radius, seed, geoVariant);

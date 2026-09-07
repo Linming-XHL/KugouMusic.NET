@@ -6,6 +6,7 @@ namespace AvaloniaSilkEffects.Sonnet;
 internal sealed class SonnetStrokeReveal
 {
     private readonly List<Stroke> _strokes = [];
+    private readonly List<(EffectNode Node, float Alpha)> _fills = [];
 
     internal SonnetStrokeReveal(EffectContainer root) => Collect(root);
 
@@ -25,10 +26,24 @@ internal sealed class SonnetStrokeReveal
                 distances[i] = distances[i - 1] + Vector2.Distance(curve.Points[i - 1], curve.Points[i]);
             _strokes.Add(new Stroke(curve, Vector2.Zero, distances));
         }
+        else if (node is PolygonNode or ShapeNode)
+            _fills.Add((node, node.Alpha));
     }
 
     internal void Update(double progress)
     {
+        // Fills have their own stagger sequence, like Folia AnimatedGraphics.
+        // Star cores, folded faces and dots emerge with the linework instead of
+        // appearing fully opaque on the first frame. No geometry is rebuilt.
+        for (var i = 0; i < _fills.Count; i++)
+        {
+            var fill = _fills[i];
+            var delay = i * 0.6180339887498949 % 1 * 0.45;
+            var jitter = unchecked((uint)i * 2654435761u) / 4294967296d;
+            var span = Math.Min(0.4 + jitter * 0.25, 1 - delay);
+            var local = Math.Clamp((progress - delay) / span, 0, 1);
+            fill.Node.Alpha = fill.Alpha * (float)(1 - Math.Pow(1 - local, 3));
+        }
         for (var i = 0; i < _strokes.Count; i++)
         {
             var stroke = _strokes[i];

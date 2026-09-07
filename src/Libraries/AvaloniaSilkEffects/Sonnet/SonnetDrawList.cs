@@ -155,18 +155,26 @@ public sealed class SonnetDrawList
                 current = points[0];
                 continue;
             }
-            points ??= [current];
             switch (command.Verb)
             {
                 case SonnetPathVerb.LineTo:
+                    points ??= [current];
                     current = new Vector2((float)command.A, (float)command.B); points.Add(current); break;
                 case SonnetPathVerb.QuadraticCurveTo:
+                    points ??= [current];
                     AddQuadratic(points, current, new Vector2((float)command.A, (float)command.B), new Vector2((float)command.C, (float)command.D), segments);
                     current = points[^1]; break;
                 case SonnetPathVerb.BezierCurveTo:
+                    points ??= [current];
                     AddCubic(points, current, new Vector2((float)command.A, (float)command.B), new Vector2((float)command.C, (float)command.D), new Vector2((float)command.E, (float)command.F), segments);
                     current = points[^1]; break;
                 case SonnetPathVerb.Arc:
+                    // A standalone arc begins at its own first point, not at (0,0).
+                    // Connecting from the origin creates stray spokes in broken rings.
+                    var arcStart = new Vector2((float)(command.A + Math.Cos(command.D) * command.C),
+                        (float)(command.B + Math.Sin(command.D) * command.C));
+                    points ??= [];
+                    if (points.Count == 0 || points[^1] != arcStart) points.Add(arcStart);
                     for (var index = 1; index <= segments; index++)
                     {
                         var angle = command.D + command.F * index / segments;
@@ -174,15 +182,16 @@ public sealed class SonnetDrawList
                     }
                     current = points[^1]; break;
                 case SonnetPathVerb.Circle:
-                    if (points.Count > 0) result.Add(points);
+                    if (points is { Count: > 0 }) result.Add(points);
                     points = Enumerable.Range(0, segments + 1).Select(index => new Vector2(
                         (float)(command.A + Math.Cos(Math.Tau * index / segments) * command.C),
                         (float)(command.B + Math.Sin(Math.Tau * index / segments) * command.C))).ToList();
                     current = points[^1]; break;
                 case SonnetPathVerb.Rectangle:
-                    if (points.Count > 0) result.Add(points);
+                    if (points is { Count: > 0 }) result.Add(points);
                     points = [new Vector2((float)command.A, (float)command.B), new Vector2((float)(command.A + command.C), (float)command.B),
                         new Vector2((float)(command.A + command.C), (float)(command.B + command.D)), new Vector2((float)command.A, (float)(command.B + command.D))];
+                    points.Add(points[0]);
                     current = points[^1]; break;
             }
         }
