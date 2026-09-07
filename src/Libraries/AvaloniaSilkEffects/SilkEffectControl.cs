@@ -38,6 +38,7 @@ public class SilkEffectControl : OpenGlControlBase
     private readonly EffectFrameClock _clock = new();
     private readonly EffectFramePacer _pacer = new();
     private readonly Stopwatch _renderStopwatch = Stopwatch.StartNew();
+    private IDisposable? _nextFrameRequest;
     private GL? _gl;
     private EffectDevice? _device;
     private IEffectScene? _activeScene;
@@ -45,7 +46,6 @@ public class SilkEffectControl : OpenGlControlBase
     private double _lastRenderScaling;
     private TimeSpan _lastPresentationTimestamp;
     private ulong _submittedFrames;
-    private ulong _skippedFrames;
     private string? _lastError;
 
     public IEffectScene? Scene
@@ -108,10 +108,15 @@ public class SilkEffectControl : OpenGlControlBase
         base.OnPropertyChanged(change);
         if (change.Property == IsPausedProperty)
             _clock.SetPaused(IsPaused);
-        if (change.Property == TargetFrameRateProperty || change.Property == IsPausedProperty)
+        if (change.Property == TargetFrameRateProperty || change.Property == IsPausedProperty ||
+            change.Property == RenderModeProperty || change.Property == SceneProperty)
+        {
+            CancelNextFrameRequest();
             _pacer.Reset();
+        }
         if (change.Property == SceneProperty || change.Property == IsPausedProperty ||
-            change.Property == RenderModeProperty || change.Property == ClearColorProperty)
+            change.Property == RenderModeProperty || change.Property == ClearColorProperty ||
+            change.Property == TargetFrameRateProperty)
             RequestNextFrameRendering();
     }
 
@@ -136,6 +141,7 @@ public class SilkEffectControl : OpenGlControlBase
 
     protected override void OnOpenGlRender(GlInterface avaloniaGl, int framebuffer)
     {
+        CancelNextFrameRequest();
         if (_device is null)
             return;
 
@@ -155,12 +161,10 @@ public class SilkEffectControl : OpenGlControlBase
         }
 
         var presentationTimestamp = _renderStopwatch.Elapsed;
-        if (!IsPaused && !_pacer.ShouldPresent(presentationTimestamp, TargetFrameRate))
-        {
-            _skippedFrames++;
-            RequestNextFrameRendering();
-            return;
-        }
+        // BeginDraw has already acquired a compositor surface. It may be a different
+        // swapchain image from the last callback, so skipping here can present stale
+        // contents. Always draw this frame; apply the cap to the next request instead.
+        _pacer.ShouldPresent(presentationTimestamp, TargetFrameRate);
 
         var (elapsed, delta, frameNumber) = _clock.Step();
         var frame = new EffectFrame(elapsed, delta, pixelSize, scaling, frameNumber);
@@ -173,17 +177,48 @@ public class SilkEffectControl : OpenGlControlBase
         var fps = presentationDelta > TimeSpan.Zero ? 1d / presentationDelta.TotalSeconds : 0;
         var metrics = _device.FrameMetrics;
         FrameStatistics = new EffectFrameStatistics(
-            fps, cpuMilliseconds, _submittedFrames, _skippedFrames,
+            fps, cpuMilliseconds, _submittedFrames, 0,
             metrics.DrawCalls, metrics.Flushes, metrics.UploadedBytes, pixelSize,
             metrics.PostProcessingEnabled, _device.OpenGlVersion, _device.Renderer,
             metrics.ResidentTextures, metrics.ResidentTextureBytes);
 
         if (!IsPaused && RenderMode == EffectRenderMode.Continuous)
+            ScheduleNextFrameRequest();
+    }
+
+    private void ScheduleNextFrameRequest()
+    {
+        var delay = _pacer.GetNextFrameDelay(_renderStopwatch.Elapsed, TargetFrameRate);
+        if (delay == TimeSpan.Zero)
+        {
             RequestNextFrameRendering();
+            return;
+        }
+
+        _nextFrameRequest = DispatcherTimer.RunOnce(() =>
+        {
+            _nextFrameRequest = null;
+            if (_device is not null && !IsPaused && RenderMode == EffectRenderMode.Continuous)
+                RequestNextFrameRendering();
+        }, delay, DispatcherPriority.Render);
+    }
+
+    private void CancelNextFrameRequest()
+    {
+        _nextFrameRequest?.Dispose();
+        _nextFrameRequest = null;
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        CancelNextFrameRequest();
+        _pacer.Reset();
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnOpenGlDeinit(GlInterface avaloniaGl)
     {
+        CancelNextFrameRequest();
         _activeScene?.DisposeGpuResources();
         _activeScene = null;
         _device?.Dispose();
@@ -195,6 +230,7 @@ public class SilkEffectControl : OpenGlControlBase
 
     protected override void OnOpenGlLost()
     {
+        CancelNextFrameRequest();
         _device?.Abandon();
         _activeScene = null;
         _device = null;

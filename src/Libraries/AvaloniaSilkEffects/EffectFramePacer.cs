@@ -33,4 +33,14 @@ public sealed class EffectFramePacer
     }
 
     public void Reset() => _lastBoundary = null;
+
+    /// <summary>Delay before requesting another compositor frame, never before drawing an acquired surface.</summary>
+    public TimeSpan GetNextFrameDelay(TimeSpan timestamp, int targetFrameRate)
+    {
+        if (targetFrameRate <= 0 || _lastBoundary is null || timestamp < _lastBoundary.Value)
+            return TimeSpan.Zero;
+
+        var remaining = _lastBoundary.Value + TimeSpan.FromSeconds(1d / targetFrameRate) - timestamp;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
 }
