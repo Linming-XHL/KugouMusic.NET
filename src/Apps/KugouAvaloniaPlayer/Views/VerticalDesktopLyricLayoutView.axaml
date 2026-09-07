@@ -37,8 +37,8 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="112,*">
-        <Grid Grid.Row="0" Margin="12,0" Background="Transparent">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Grid Grid.Row="{Binding Owner.ControlBarRow}" Height="{Binding Owner.ControlBarHeight}" Margin="12,0" Background="Transparent">
             <suki:GlassCard Name="VerticalControlCard"
                             Classes.expanded="{Binding Owner.IsControlBarExpanded}"
                             Classes.locked="{Binding Owner.IsLocked}"
@@ -48,6 +48,10 @@
                             PointerPressed="OnControlSurfacePointerPressed">
                 <Grid RowDefinitions="Auto,Auto" RowSpacing="4">
                     <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                        <Button Command="{Binding Owner.ToggleControlBarPlacementCommand}" Classes="Basic"
+                                ToolTip.Tip="切换操作栏到歌词上方或下方">
+                            <TextBlock Text="{Binding Owner.ControlBarPlacementLabel}" Foreground="White" FontSize="12" />
+                        </Button>
                         <Button Command="{Binding Owner.ToggleTranslationVisibilityCommand}" Classes="Basic" ToolTip.Tip="切换翻译显示">
                             <Panel>
                                 <Svg Path="/Assets/translation-svgrepo-com.svg" Width="18" Height="18"

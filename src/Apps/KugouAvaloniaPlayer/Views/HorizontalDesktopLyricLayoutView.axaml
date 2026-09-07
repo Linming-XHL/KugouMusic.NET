@@ -21,8 +21,8 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,*">
-        <Grid Grid.Row="0" Width="716" Height="64" Background="Transparent"
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Grid Grid.Row="{Binding Owner.ControlBarRow}" Width="716" Height="{Binding Owner.ControlBarHeight}" Background="Transparent"
               HorizontalAlignment="Center" VerticalAlignment="Top">
             <suki:GlassCard Name="ControlCard"
                             Classes.expanded="{Binding Owner.IsControlBarExpanded}"
@@ -35,6 +35,10 @@
                     <StackPanel Name="LeftControls" Grid.Column="0"
                                 Classes.locked="{Binding Owner.IsLocked}"
                                 Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                        <Button Command="{Binding Owner.ToggleControlBarPlacementCommand}" Classes="Basic"
+                                ToolTip.Tip="切换操作栏到歌词上方或下方">
+                            <TextBlock Text="{Binding Owner.ControlBarPlacementLabel}" Foreground="White" FontSize="12" />
+                        </Button>
                         <Button Command="{Binding Owner.ToggleTranslationVisibilityCommand}" Classes="Basic"
                                 ToolTip.Tip="切换翻译显示">
                             <Panel>
@@ -57,7 +61,7 @@
                             Classes.locked="{Binding Owner.IsLocked}"
                             Command="{Binding Owner.ToggleLockCommand}"
                             IsVisible="{Binding Owner.CanMousePassthrough}"
-                            Classes="Basic" Margin="75,-5,0,0" Cursor="Hand"
+                            Classes="Basic" Margin="8,-5,0,0" Cursor="Hand"
                             ToolTip.Tip="锁定后收起为悬浮图标">
                         <Svg Path="/Assets/lock2-svgrepo-com.svg" Width="22" Height="22"
                              Css="path { fill: white; }" />

@@ -233,6 +233,8 @@ public class AppSettings
     public double DesktopLyricFontSize { get; set; } = 30;
     public bool DesktopLyricShowTranslation { get; set; } = true;
     public bool DesktopLyricDoubleLineEnabled { get; set; }
+    public bool DesktopLyricControlsBelow { get; set; }
+    public bool DesktopLyricLocked { get; set; }
     public bool OpenDesktopLyricOnStartup { get; set; }
     public DesktopLyricWindowPositionSettings DesktopLyricWindowPosition { get; set; } = new();
     public DesktopLyricWindowPositionSettings VerticalDesktopLyricWindowPosition { get; set; } = new();

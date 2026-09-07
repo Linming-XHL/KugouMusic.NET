@@ -116,7 +116,8 @@
                 IsVisible="{Binding IsEmbeddedCollapsedLockIconVisible}"
                 IsHitTestVisible="{Binding IsCollapsedLockIconVisible}"
                 Width="40" Height="40" Padding="8"
-                HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0"
+                HorizontalAlignment="Center" VerticalAlignment="{Binding CollapsedLockIconAlignment}"
+                Margin="{Binding CollapsedLockIconMargin}"
                 PointerEntered="OnCollapsedIconPointerEntered"
                 PointerExited="OnCollapsedIconPointerExited"
                 PointerPressed="OnCollapsedIconPointerPressed">

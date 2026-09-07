@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Layout;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -40,7 +41,22 @@ public partial class DesktopLyricViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial double TranslationFontSize { get; set; } = 18;
     [ObservableProperty] public partial IBrush TranslationLineForeground { get; set; } = DefaultTranslationLineBrush;
     [ObservableProperty] public partial IBrush TranslationWordForeground { get; set; } = DefaultTranslationWordBrush;
-    [ObservableProperty] public partial DesktopLyricLayoutMode LayoutMode { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ControlBarHeight), nameof(CollapsedLockIconMargin))]
+    public partial DesktopLyricLayoutMode LayoutMode { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ControlBarRow), nameof(ControlBarPlacementLabel), nameof(CollapsedLockIconAlignment), nameof(CollapsedLockIconMargin))]
+    public partial bool AreControlsBelow { get; set; }
+
+    public string ControlBarPlacementLabel => AreControlsBelow ? "置上" : "置下";
+    public int ControlBarRow => AreControlsBelow ? 2 : 0;
+    public double ControlBarHeight => LayoutMode == DesktopLyricLayoutMode.Vertical ? 112 : 64;
+    public VerticalAlignment CollapsedLockIconAlignment =>
+        AreControlsBelow ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+    public Thickness CollapsedLockIconMargin => AreControlsBelow
+        ? new Thickness(0, 0, 0, ControlBarHeight - 52)
+        : new Thickness(0, 12, 0, 0);
     [ObservableProperty] public partial IDesktopLyricLayoutViewModel? ActiveLayout { get; set; }
     [ObservableProperty] public partial double VerticalDesiredWidth { get; set; } = VerticalBaseWindowWidth;
 
@@ -57,6 +73,9 @@ public partial class DesktopLyricViewModel : ViewModelBase, IDisposable
         FontSize = ClampFontSize(SettingsManager.Settings.DesktopLyricFontSize);
         IsTranslationVisible = SettingsManager.Settings.DesktopLyricShowTranslation;
         ApplyUiPreferences(_uiPreferencesState.Current);
+        // Restore the interaction preferences after the active layout has been initialized.
+        AreControlsBelow = SettingsManager.Settings.DesktopLyricControlsBelow;
+        IsLocked = CanMousePassthrough && SettingsManager.Settings.DesktopLyricLocked;
         _uiPreferencesState.PropertyChanged += OnUiPreferencesChanged;
     }
 
@@ -70,6 +89,14 @@ public partial class DesktopLyricViewModel : ViewModelBase, IDisposable
     public bool IsEmbeddedCollapsedLockIconVisible => IsCollapsedLockIconVisible && !UsesSeparateLockOverlay;
     public bool IsSingleLineMode => !IsDoubleLineEnabled;
     public bool IsDesktopTranslationActuallyVisible => IsTranslationVisible && !IsDoubleLineEnabled;
+
+    [RelayCommand]
+    private void ToggleControlBarPlacement()
+    {
+        AreControlsBelow = !AreControlsBelow;
+        SettingsManager.Settings.DesktopLyricControlsBelow = AreControlsBelow;
+        SettingsManager.Save();
+    }
 
     [RelayCommand]
     private void ToggleLock()
@@ -135,6 +162,8 @@ public partial class DesktopLyricViewModel : ViewModelBase, IDisposable
 
     partial void OnIsLockedChanged(bool value)
     {
+        SettingsManager.Settings.DesktopLyricLocked = value;
+        SettingsManager.Save();
         IsControlBarExpanded = false;
         IsControlHotspotHovered = false;
         if (!value)

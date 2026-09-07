@@ -131,6 +131,25 @@ public sealed class DesktopLyricWindowService(
             {
                 UpdateHitTestState(lyricWindow, lyricViewModel);
             }
+            else if (e.PropertyName == nameof(DesktopLyricViewModel.AreControlsBelow))
+            {
+                // Keep the lyric row anchored while moving the reserved control row across it.
+                _isSynchronizingWindowPositions = true;
+                try
+                {
+                    var offset = (int)Math.Round(lyricViewModel.ControlBarHeight * lyricWindow.RenderScaling);
+                    lyricWindow.Position = new PixelPoint(lyricWindow.Position.X,
+                        lyricWindow.Position.Y + (lyricViewModel.AreControlsBelow ? offset : -offset));
+                    ClampWindowToWorkingArea(lyricWindow);
+                }
+                finally
+                {
+                    _isSynchronizingWindowPositions = false;
+                }
+                CaptureLyricWindowPosition(lyricWindow, _activeLayoutMode);
+                UpdateHitTestState(lyricWindow, lyricViewModel);
+                SyncOverlayPositionFromLyricWindow();
+            }
             else if (e.PropertyName == nameof(DesktopLyricViewModel.LayoutMode))
             {
                 SwitchWindowLayout(lyricWindow, lyricViewModel);
@@ -158,9 +177,14 @@ public sealed class DesktopLyricWindowService(
             SyncOverlayPositionFromLyricWindow();
         };
 
+        lyricWindow.Closing += (_, _) =>
+        {
+            // Closed fires after Avalonia clears PlatformImpl, when Position returns (0, 0).
+            CaptureLyricWindowPosition(lyricWindow, _activeLayoutMode);
+        };
+
         lyricWindow.Closed += (_, _) =>
         {
-            CaptureLyricWindowPosition(lyricWindow, _activeLayoutMode);
             SettingsManager.Save();
             desktopLyricMousePassthroughService.Apply(lyricWindow, DesktopLyricHitTestLayout.FullWindow);
             CloseLockOverlayWindow();
@@ -264,15 +288,18 @@ public sealed class DesktopLyricWindowService(
     {
         var width = (int)Math.Ceiling(lyricWindow.Bounds.Width);
         var x = Math.Max((width - CollapsedIconSize) / 2, 0);
-        return new PixelRect(x, CollapsedIconTopMargin, CollapsedIconSize, CollapsedIconSize);
+        var top = lyricWindow.DataContext is DesktopLyricViewModel { AreControlsBelow: true } vm
+            ? Math.Max(0, (int)Math.Round(lyricWindow.Height - vm.ControlBarHeight + CollapsedIconTopMargin))
+            : CollapsedIconTopMargin;
+        return new PixelRect(x, top, CollapsedIconSize, CollapsedIconSize);
     }
 
     private static PixelPoint GetOverlayPosition(Window lyricWindow)
     {
         var region = GetCollapsedIconRegion(lyricWindow);
         return new PixelPoint(
-            lyricWindow.Position.X + region.X - (CollapsedIconSize - region.Width) / 2,
-            lyricWindow.Position.Y + region.Y - (CollapsedIconSize - region.Height) / 2);
+            lyricWindow.Position.X + (int)Math.Round(region.X * lyricWindow.RenderScaling),
+            lyricWindow.Position.Y + (int)Math.Round(region.Y * lyricWindow.RenderScaling));
     }
 
     private void SwitchWindowLayout(DesktopLyricWindow lyricWindow, DesktopLyricViewModel lyricViewModel)
@@ -336,7 +363,12 @@ public sealed class DesktopLyricWindowService(
         var position = GetPositionSettings(mode);
         position.HasValue = true;
         position.X = lyricWindow.Position.X;
-        position.Y = lyricWindow.Position.Y;
+        // Preserve the legacy coordinate format: the top of a hypothetical controls-above window.
+        // This anchors saved positions to the lyric row regardless of the current control placement.
+        var offset = lyricWindow.DataContext is DesktopLyricViewModel { AreControlsBelow: true }
+            ? (int)Math.Round((mode == DesktopLyricLayoutMode.Vertical ? 112 : 64) * lyricWindow.RenderScaling)
+            : 0;
+        position.Y = lyricWindow.Position.Y - offset;
     }
 
     private static bool RestoreLyricWindowPosition(Window lyricWindow, DesktopLyricLayoutMode mode)
@@ -345,7 +377,10 @@ public sealed class DesktopLyricWindowService(
         if (!position.HasValue)
             return false;
 
-        var savedPosition = new PixelPoint(position.X, position.Y);
+        var offset = lyricWindow.DataContext is DesktopLyricViewModel { AreControlsBelow: true }
+            ? (int)Math.Round((mode == DesktopLyricLayoutMode.Vertical ? 112 : 64) * lyricWindow.RenderScaling)
+            : 0;
+        var savedPosition = new PixelPoint(position.X, position.Y + offset);
         if (IsVisibleOnAnyScreen(lyricWindow, savedPosition))
         {
             lyricWindow.Position = savedPosition;
