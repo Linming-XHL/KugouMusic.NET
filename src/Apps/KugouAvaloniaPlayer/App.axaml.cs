@@ -94,8 +94,8 @@ public partial class App : Application
                 if (activatableLifetime != null)
                     activatableLifetime.Activated += OnApplicationActivated;
 
-                desktop.ShutdownRequested += (_, _) => mainWindow.CanClose = true;
 #endif
+                desktop.ShutdownRequested += (_, _) => mainWindow.CanClose = true;
 
                 InitializeTrayIcon(playerVm, desktop, vm, mainWindowService);
                 desktop.Exit += (s, e) =>
