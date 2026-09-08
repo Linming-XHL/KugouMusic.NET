@@ -101,7 +101,7 @@
                                Foreground="{DynamicResource SukiLiquid2}" />
                 </StackPanel>
 
-                <ScrollViewer IsVisible="{Binding !IsLoading}" Padding="0,0,0,-50">
+                <ScrollViewer IsVisible="{Binding !IsLoading}" Padding="0,0,0,50">
                     <ItemsRepeater ItemsSource="{Binding Playlists}">
                         <ItemsRepeater.Layout>
                             <UniformGridLayout MinItemWidth="184"

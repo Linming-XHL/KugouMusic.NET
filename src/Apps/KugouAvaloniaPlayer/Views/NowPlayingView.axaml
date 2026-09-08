@@ -3,6 +3,7 @@
              xmlns:suki="https://github.com/kikipoulet/SukiUI"
              xmlns:chrome="clr-namespace:Avalonia.Controls.Chrome;assembly=Avalonia.Controls"
              xmlns:behaviors="using:KugouAvaloniaPlayer.Behaviors"
+             xmlns:controls="using:KugouAvaloniaPlayer.Controls"
              xmlns:vm="using:KugouAvaloniaPlayer.ViewModels"
              x:Class="KugouAvaloniaPlayer.Views.NowPlayingView"
              x:DataType="vm:NowPlayingViewModel">
@@ -112,7 +113,26 @@
             </Border>
         </Panel>
 
+        <Image x:Name="FoliaCoverImage"
+               Width="1" Height="1" Opacity="0" IsHitTestVisible="False"
+               behaviors:LocalArtworkImageBehavior.Source="{Binding Player.DisplayedPlayingSong.Cover}"
+               behaviors:LocalArtworkImageBehavior.DecodePixelWidth="50"
+               behaviors:LocalArtworkImageBehavior.UseDefaultFallback="False"
+               behaviors:LocalArtworkImageBehavior.IsEnabled="{Binding IsFoliaLatentMaterialActive}"
+               behaviors:NowPlayingRemoteImageBehavior.Source="{Binding Player.DisplayedPlayingSong.Cover, Converter={StaticResource RemoteImageSourceConverter}}"
+               behaviors:NowPlayingRemoteImageBehavior.IsEnabled="{Binding IsFoliaLatentMaterialActive}" />
+        <controls:LatentBackgroundControl x:Name="FoliaBackground"
+               Player="{Binding Player}"
+               Cover="{Binding #FoliaCoverImage.Source}"
+               IsSonnet="{Binding IsSonnetTheme}"
+               IsActive="{Binding IsFoliaLatentMaterialActive}"
+               IsVisible="{Binding IsFoliaLatentMaterialActive}" />
         <Grid x:Name="ThemeContentHost" />
+        <TextBlock Text="{Binding #FoliaBackground.LastError}"
+                   Foreground="#FFFFD4C4" Background="#E0201010"
+                   MaxWidth="720" TextWrapping="Wrap" Margin="24,80,24,24"
+                   HorizontalAlignment="Center" VerticalAlignment="Top"
+                   IsVisible="{Binding IsFoliaLatentMaterialActive}" IsHitTestVisible="False" />
 
         <Border Height="72"
                 VerticalAlignment="Top"

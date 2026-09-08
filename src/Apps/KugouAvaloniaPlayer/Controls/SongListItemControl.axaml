@@ -17,6 +17,13 @@
         <Style Selector="TextBlock.SongTitle.playing">
             <Setter Property="Foreground" Value="{DynamicResource SukiPrimaryColor75}" />
         </Style>
+        <Style Selector="TextBlock.SongArtist,
+                         TextBlock.SongAlbum">
+            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}" />
+        </Style>
+        <Style Selector="TextBlock.SongDuration">
+            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}" />
+        </Style>
     </UserControl.Styles>
 
     <Border Name="ItemShell"
@@ -50,17 +57,18 @@
                            FontWeight="Bold"
                            TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding Singer}" FontSize="12" FontWeight="ExtraLight"
-                           Foreground="{StaticResource SukiLiquid2}"
+                           Classes="SongArtist"
                            TextTrimming="CharacterEllipsis" />
             </StackPanel>
 
             <TextBlock Grid.Column="2" Text="{Binding AlbumName}" VerticalAlignment="Center"
-                       Foreground="{StaticResource SukiLiquid2}"
+                       Classes="SongAlbum"
                        TextTrimming="CharacterEllipsis" FontWeight="ExtraLight"/>
 
             <TextBlock Grid.Column="3"
                        Text="{Binding DurationSeconds,Converter={StaticResource SecondsToTimeConverter}}"
-                       VerticalAlignment="Center" Foreground="{StaticResource SukiLowText}" />
+                       Classes="SongDuration"
+                       VerticalAlignment="Center" />
 
             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
                         HorizontalAlignment="Right" Margin="0,0,10,0">

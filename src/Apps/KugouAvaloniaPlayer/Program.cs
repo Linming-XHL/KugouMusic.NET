@@ -54,8 +54,44 @@ internal sealed class Program
     }
 
     public static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    {
+        var builder = AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+
+#if KUGOU_MACOS
+        builder = builder.With(new AvaloniaNativePlatformOptions
+        {
+            RenderingMode =
+            [
+                AvaloniaNativeRenderingMode.OpenGl,
+                AvaloniaNativeRenderingMode.Metal,
+                AvaloniaNativeRenderingMode.Software,
+            ],
+        });
+#elif KUGOU_WINDOWS
+        builder = builder.With(new Win32PlatformOptions
+        {
+            RenderingMode =
+            [
+                Win32RenderingMode.AngleEgl,
+                Win32RenderingMode.Wgl,
+                Win32RenderingMode.Software,
+            ],
+        });
+#elif KUGOU_LINUX
+        builder = builder.With(new X11PlatformOptions
+        {
+            RenderingMode =
+            [
+                X11RenderingMode.Egl,
+                X11RenderingMode.Glx,
+                X11RenderingMode.Software,
+            ],
+        });
+#endif
+
+        return builder;
+    }
 }

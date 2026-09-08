@@ -24,7 +24,7 @@
                                 <DockPanel ClipToBounds="True">
                                     <Button Name="PART_SidebarToggleButton"
                                             Margin="7,14,7,7"
-                                            HorizontalAlignment="{TemplateBinding TogglePaneButtonPosition}"
+                                            HorizontalAlignment="Right"
                                             VerticalAlignment="Top"
                                             Classes="Basic"
                                             Cursor="Hand"
@@ -166,6 +166,9 @@
         </Style>
     </Style>
     <Style Selector="controls|KugouSideMenu[IsMenuExpanded=False]">
+        <Style Selector="^ /template/ Button#PART_SidebarToggleButton">
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
         <Style Selector="^ /template/ PathIcon#PART_ExpandIcon">
             <Setter Property="RenderTransform" Value="rotate(-180deg)" />
         </Style>

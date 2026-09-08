@@ -21,7 +21,7 @@ partial class App
         _playerViewModel = player;
         var playbackCommands = (IPlaybackCommands)player;
 
-        var iconUri = new Uri("avares://KugouAvaloniaPlayer/Assets/Test.ico");
+        var iconUri = new Uri("avares://KugouAvaloniaPlayer/Assets/ka-music.ico");
         using var iconStream = AssetLoader.Open(iconUri);
         var icon = new WindowIcon(iconStream);
 

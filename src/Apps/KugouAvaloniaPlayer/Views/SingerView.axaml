@@ -51,7 +51,7 @@
                             Padding="22,16,22,0"
                             CornerRadius="18">
                 <Grid>
-                    <ScrollViewer Padding="0,0,0,-50"
+                    <ScrollViewer Padding="0,0,0,50"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   behaviors:InteractionBehaviors.ScrollNearBottomCommand="{Binding LoadMoreAlbumsCommand}">

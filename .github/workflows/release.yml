@@ -76,7 +76,7 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
 
           EXE_NAME="KugouAvaloniaPlayer"
-          ICON_PATH="./src/Apps/KugouAvaloniaPlayer/Assets/Test.png"
+          ICON_PATH="./src/Apps/KugouAvaloniaPlayer/Assets/ka-logo.png"
           EXTRA_ARGS=()
 
           if [[ "${{ matrix.rid }}" == win-* ]]; then
@@ -156,7 +156,7 @@ jobs:
         shell: bash
         run: |
           ICONSET_DIR="./dist/AppIcon.iconset"
-          SOURCE_PNG="./src/Apps/KugouAvaloniaPlayer/Assets/Test.png"
+          SOURCE_PNG="./src/Apps/KugouAvaloniaPlayer/Assets/ka-logo.png"
           ICNS_PATH="./dist/KugouAvaloniaPlayer.icns"
 
           mkdir -p "$ICONSET_DIR"

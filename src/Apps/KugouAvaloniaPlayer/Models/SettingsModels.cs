@@ -60,6 +60,12 @@ public enum NowPlayingBackgroundSource
     CustomImage
 }
 
+public enum FoliaVisualizerBackgroundMode
+{
+    LatentMaterial,
+    BlurredCover
+}
+
 public enum SavedMainWindowState
 {
     Normal,
@@ -227,6 +233,8 @@ public class AppSettings
     public double DesktopLyricFontSize { get; set; } = 30;
     public bool DesktopLyricShowTranslation { get; set; } = true;
     public bool DesktopLyricDoubleLineEnabled { get; set; }
+    public bool DesktopLyricControlsBelow { get; set; }
+    public bool DesktopLyricLocked { get; set; }
     public bool OpenDesktopLyricOnStartup { get; set; }
     public DesktopLyricWindowPositionSettings DesktopLyricWindowPosition { get; set; } = new();
     public DesktopLyricWindowPositionSettings VerticalDesktopLyricWindowPosition { get; set; } = new();
@@ -245,6 +253,9 @@ public class AppSettings
 
     public NowPlayingThemePreset NowPlayingThemePreset { get; set; } =
         NowPlayingThemePreset.Standard;
+
+    public FoliaVisualizerBackgroundMode FoliaVisualizerBackgroundMode { get; set; } =
+        FoliaVisualizerBackgroundMode.LatentMaterial;
 
     public FumeThemeSettings FumeTheme { get; set; } = new();
 

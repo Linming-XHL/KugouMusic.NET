@@ -1013,7 +1013,7 @@
                                         CornerRadius="14"
                                         ClipToBounds="True"
                                         Background="{DynamicResource SukiPrimaryColorLow}">
-                                    <Image Source="/Assets/Test.png"
+                                    <Image Source="/Assets/ka-logo.png"
                                            Width="90"
                                            Height="90"
                                            HorizontalAlignment="Center"
