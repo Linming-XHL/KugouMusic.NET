@@ -24,7 +24,11 @@ entry; probabilities are normalized over the resulting unique entries.
   Each block has up to 32 lexically sorted UTF-8 words. Entries contain unsigned
   varint common-prefix and suffix byte lengths, suffix bytes, float log word
   probability, and a byte coarse word class. Only this byte array is retained;
-  searches reconstruct one block into a temporary buffer.
+  searches reconstruct one block into a temporary buffer. DAG scanning appends
+  one complete grapheme at a time to a reusable UTF-8 prefix buffer and narrows
+  the matching sorted-entry interval. An empty interval stops that scan; terminal
+  entries feed the existing maximum-probability route directly. No persistent
+  trie, new language resource format, or regenerated dictionary is required.
 - `ChineseHmm.bin`: `SNH1`, four double initial probabilities and sixteen double
   transition probabilities in BMES order, followed by four sorted emission
   tables (int count, int Unicode scalar / double probability pairs).

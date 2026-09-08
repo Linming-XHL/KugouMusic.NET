@@ -14,28 +14,27 @@ internal static class SonnetChineseTokenizer
         var next = new int[count];
         var kinds = new SonnetLexicalKind[count];
         var known = new bool[count];
+        Span<byte> prefixBuffer = stackalloc byte[lexicon.MaxUtf8Length];
+        Span<byte> wordBuffer = stackalloc byte[lexicon.MaxUtf8Length];
         for (var index = count - 1; index >= 0; index--)
         {
-            scores[index] = double.NegativeInfinity;
+            // Always keep the original unknown-single-grapheme edge, including
+            // when even the first grapheme has no dictionary prefix.
+            scores[index] = lexicon.UnknownScore + scores[index + 1];
+            next[index] = index + 1;
+            var scanner = lexicon.Scan(prefixBuffer, wordBuffer);
             for (var finish = index + 1; finish <= count; finish++)
             {
-                var from = elements[start + index].Start;
-                var to = elements[start + finish - 1].End;
-                if (to - from > lexicon.MaxLength) break;
-                var found = lexicon.TryGet(text.AsSpan(from, to - from), out var cost, out var kind);
-                if (!found && finish != index + 1) continue;
+                if (!scanner.Advance(elements[start + finish - 1].Text.AsSpan(), out var found, out var cost, out var kind)) break;
+                if (!found) continue;
                 var score = cost + scores[finish];
-                if (score < scores[index]) continue;
+                // A known single replaces its fallback even if float storage
+                // rounds its probability slightly below UnknownScore.
+                if (finish != index + 1 && score < scores[index]) continue;
                 scores[index] = score;
                 next[index] = finish;
                 kinds[index] = kind;
-                known[index] = found;
-            }
-            // An extended grapheme may be longer than any dictionary entry.
-            if (next[index] == 0)
-            {
-                next[index] = index + 1;
-                scores[index] = lexicon.UnknownScore + scores[index + 1];
+                known[index] = true;
             }
         }
         for (var index = 0; index < count;)
