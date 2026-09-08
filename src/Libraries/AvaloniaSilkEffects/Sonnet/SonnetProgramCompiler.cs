@@ -1,7 +1,3 @@
-using System.Globalization;
-using System.Text;
-using System.Text.RegularExpressions;
-
 namespace AvaloniaSilkEffects.Sonnet;
 
 public static partial class SonnetProgramCompiler
@@ -19,11 +15,14 @@ public static partial class SonnetProgramCompiler
 
     public static SonnetProgram Compile(IReadOnlyList<SonnetLine> source, string seed = "sonnet")
     {
+        var language = SonnetTokenizer.SongLanguage(source);
+        var analyses = source.Select(line => SonnetSegmentation.Analyze(line, language)).ToArray();
+        var wordCounts = SonnetSegmentation.CountWords(analyses);
         var lines = source.Select((line, index) => new SonnetCompiledLine(
             index, line,
             Math.Max(line.StartTime, Math.Min(line.RenderEndTime ?? line.EndTime,
                 index + 1 < source.Count ? source[index + 1].StartTime : double.PositiveInfinity)),
-            BuildSemanticSegments(line))).ToArray();
+            SonnetSegmentation.Build(analyses[index], wordCounts))).ToArray();
         if (lines.Length == 0)
             return new SonnetProgram(seed, 1.25, []);
 
@@ -79,39 +78,8 @@ public static partial class SonnetProgramCompiler
 
     public static IReadOnlyList<SonnetSemanticSegment> BuildSemanticSegments(SonnetLine line)
     {
-        if (string.IsNullOrEmpty(line.FullText)) return [];
-        var graphemes = SplitGraphemes(line.FullText);
-        var timeline = BuildTimeline(line, graphemes);
-
-        var raw = line.Words.Count > 0
-            ? BuildTimedWordParts(timeline)
-            : BuildWordPartsFallback(line.FullText, graphemes);
-        var segments = new List<SonnetSemanticSegment>();
-        foreach (var part in raw)
-        {
-            var matching = timeline.Where(item => item.EndOffset > part.Start && item.StartOffset < part.End).ToArray();
-            var timed = matching.Select(item => item.Timing).ToArray();
-            var wordIndices = timed.Where(item => item.WordIndex.HasValue).Select(item => item.WordIndex!.Value).Distinct().ToArray();
-            var segment = new SonnetSemanticSegment(
-                line.FullText[part.Start..part.End], part.Start, part.End,
-                timed.FirstOrDefault()?.StartTime ?? line.StartTime,
-                timed.LastOrDefault()?.EndTime ?? line.EndTime,
-                wordIndices, timed, part.IsWordLike);
-            if (!segment.IsWordLike && !WhitespaceOnly().IsMatch(segment.Text) && segments.Count > 0)
-            {
-                var previous = segments[^1];
-                segments[^1] = previous with
-                {
-                    Text = previous.Text + segment.Text,
-                    EndOffset = segment.EndOffset,
-                    EndTime = Math.Max(previous.EndTime, segment.EndTime),
-                    Graphemes = previous.Graphemes.Concat(segment.Graphemes).ToArray(),
-                    WordIndices = previous.WordIndices.Concat(segment.WordIndices).Distinct().ToArray(),
-                };
-            }
-            else segments.Add(segment);
-        }
-        return segments;
+        var analysis = SonnetSegmentation.Analyze(line, SonnetLanguage.Chinese);
+        return SonnetSegmentation.Build(analysis, SonnetSegmentation.CountWords([analysis]));
     }
 
     private static List<ParagraphDraft> SplitParagraphs(SonnetCompiledLine[] lines, double threshold)
@@ -168,7 +136,7 @@ public static partial class SonnetProgramCompiler
         if (lines.Any(item => Contains(item.Line.SongPart, "bridge", "break", "間奏", "ブリッジ"))) return SonnetParagraphKind.Break;
         if (index == total - 1) return SonnetParagraphKind.Outro;
         var duration = lines[^1].RenderEndTime - lines[0].Line.StartTime;
-        var words = lines.Sum(item => item.Segments.Count(segment => segment.IsWordLike));
+        var words = lines.Sum(item => item.Segments.Sum(segment => segment.LexicalWords.Count));
         var punctuation = lines.Sum(item => item.Line.FullText.Count(character => "!?！？…".Contains(character)));
         if (duration <= 3.5 || words <= 3) return SonnetParagraphKind.Breath;
         if (punctuation >= 2 || words / Math.Max(duration, 1) > 2.5) return SonnetParagraphKind.Lift;
@@ -192,7 +160,7 @@ public static partial class SonnetProgramCompiler
             var group = groups[shotIndex];
             var signature = string.Join('|', group.Select(item => item.Line.FullText));
             var kind = ChooseWithoutRepeat(ShotKinds, $"{seed}:{paragraphIndex}:{shotIndex}:{signature}", previous);
-            var wordCount = group.Sum(item => item.Segments.Count(segment => segment.IsWordLike));
+            var wordCount = group.Sum(item => item.Segments.Sum(segment => segment.LexicalWords.Count));
             if (paragraphKind == SonnetParagraphKind.Breath && shotIndex == 0 && wordCount <= 2) kind = SonnetShotKind.QuietTableau;
             if (paragraphKind == SonnetParagraphKind.Chorus && kind == SonnetShotKind.QuietTableau) kind = SonnetShotKind.TypeImpact;
             previous = kind;
@@ -228,206 +196,8 @@ public static partial class SonnetProgramCompiler
         return choices[start];
     }
 
-    private static IReadOnlyList<TimelineItem> BuildTimeline(SonnetLine line, IReadOnlyList<RangeText> ranges)
-    {
-        var result = new TimelineItem[ranges.Count];
-        var cursor = 0;
-        var lastTime = line.StartTime;
-        for (var wordIndex = 0; wordIndex < line.Words.Count; wordIndex++)
-        {
-            var word = line.Words[wordIndex];
-            var wordGraphemes = SplitGraphemes(word.Text);
-            var match = FindSequence(ranges.Select(item => item.Text).ToArray(), wordGraphemes.Select(item => item.Text).ToArray(), cursor);
-            var start = match >= 0 ? match : cursor;
-            for (var gap = cursor; gap < start && gap < result.Length; gap++)
-                result[gap] = new TimelineItem(ranges[gap].Start, ranges[gap].End, new SonnetGraphemeTiming(ranges[gap].Text, word.StartTime, word.StartTime));
-            for (var i = 0; i < wordGraphemes.Count && start + i < result.Length; i++)
-            {
-                var duration = Math.Max(0, word.EndTime - word.StartTime) / Math.Max(1, wordGraphemes.Count);
-                var timing = new SonnetGraphemeTiming(ranges[start + i].Text,
-                    word.StartTime + duration * i, i == wordGraphemes.Count - 1 ? word.EndTime : word.StartTime + duration * (i + 1), wordIndex);
-                result[start + i] = new TimelineItem(ranges[start + i].Start, ranges[start + i].End, timing);
-                lastTime = Math.Max(lastTime, timing.EndTime);
-            }
-            cursor = Math.Max(cursor, start + wordGraphemes.Count);
-        }
-        for (var i = 0; i < result.Length; i++)
-            result[i] ??= new TimelineItem(ranges[i].Start, ranges[i].End, new SonnetGraphemeTiming(ranges[i].Text, lastTime, lastTime));
-        return result;
-    }
-
-   private static IReadOnlyList<Part> BuildTimedWordParts(
-    IReadOnlyList<TimelineItem> timeline)
-{
-    if (timeline.Count == 0)
-        return [];
-
-    var result = new List<Part>();
-
-    var start = timeline[0].StartOffset;
-    var end = timeline[0].EndOffset;
-    var wordIndex = timeline[0].Timing.WordIndex;
-
-    for (var i = 1; i < timeline.Count; i++)
-    {
-        var item = timeline[i];
-
-        if (item.Timing.WordIndex == wordIndex)
-        {
-            end = item.EndOffset;
-            continue;
-        }
-
-        result.Add(new Part(
-            start,
-            end,
-            wordIndex.HasValue));
-
-        start = item.StartOffset;
-        end = item.EndOffset;
-        wordIndex = item.Timing.WordIndex;
-    }
-
-    result.Add(new Part(
-        start,
-        end,
-        wordIndex.HasValue));
-
-    return result;
-}
-
-private static IReadOnlyList<Part> BuildWordPartsFallback(
-    string text,
-    IReadOnlyList<RangeText> graphemes)
-{
-    if (graphemes.Count == 0)
-        return [];
-
-    var result = new List<Part>();
-
-    var runStart = -1;
-    var runEnd = -1;
-
-    void FlushRun()
-    {
-        if (runStart < 0)
-            return;
-
-        result.Add(new Part(
-            runStart,
-            runEnd,
-            true));
-
-        runStart = -1;
-        runEnd = -1;
-    }
-
-    foreach (var grapheme in graphemes)
-    {
-        var rune = Rune.GetRuneAt(text, grapheme.Start);
-
-        // 中文、平假名、片假名通常没有空格。
-        // 对 Sonnet 来说这里要的是视觉语义单元，而不是严格的 NLP 分词，
-        // 因此按 grapheme 分割比把整句中文视为一个单词更合适。
-        if (IsCjkWordUnit(rune))
-        {
-            FlushRun();
-
-            result.Add(new Part(
-                grapheme.Start,
-                grapheme.End,
-                true));
-
-            continue;
-        }
-
-        var category = Rune.GetUnicodeCategory(rune);
-
-        var wordLike =
-            Rune.IsLetterOrDigit(rune) ||
-            category is
-                UnicodeCategory.NonSpacingMark or
-                UnicodeCategory.SpacingCombiningMark or
-                UnicodeCategory.EnclosingMark;
-
-        if (wordLike)
-        {
-            if (runStart < 0)
-                runStart = grapheme.Start;
-
-            runEnd = grapheme.End;
-            continue;
-        }
-
-        FlushRun();
-
-        result.Add(new Part(
-            grapheme.Start,
-            grapheme.End,
-            false));
-    }
-
-    FlushRun();
-
-    return result;
-}
-
-private static bool IsCjkWordUnit(Rune rune)
-{
-    var value = rune.Value;
-
-    return value is
-        // CJK Unified Ideographs Extension A
-        >= 0x3400 and <= 0x4DBF or
-
-        // CJK Unified Ideographs
-        >= 0x4E00 and <= 0x9FFF or
-
-        // CJK Compatibility Ideographs
-        >= 0xF900 and <= 0xFAFF or
-
-        // CJK Extensions B-I
-        >= 0x20000 and <= 0x323AF or
-
-        // Hiragana
-        >= 0x3040 and <= 0x309F or
-
-        // Katakana
-        >= 0x30A0 and <= 0x30FF or
-
-        // Katakana Phonetic Extensions
-        >= 0x31F0 and <= 0x31FF or
-
-        // Halfwidth Katakana
-        >= 0xFF66 and <= 0xFF9D;
-}
-
-    private static IReadOnlyList<RangeText> SplitGraphemes(string text)
-    {
-        var result = new List<RangeText>();
-        var enumerator = StringInfo.GetTextElementEnumerator(text);
-        while (enumerator.MoveNext())
-        {
-            var start = enumerator.ElementIndex;
-            var value = enumerator.GetTextElement();
-            result.Add(new RangeText(start, start + value.Length, value));
-        }
-        return result;
-    }
-
-    private static int FindSequence(string[] source, string[] target, int from)
-    {
-        for (var i = from; i <= source.Length - target.Length; i++)
-            if (target.Select((value, j) => source[i + j] == value).All(match => match)) return i;
-        return -1;
-    }
-
     private static bool Contains(string? value, params string[] candidates) => value is not null &&
         candidates.Any(candidate => value.Contains(candidate, StringComparison.OrdinalIgnoreCase));
 
-    [GeneratedRegex("^\\s+$", RegexOptions.CultureInvariant)] private static partial Regex WhitespaceOnly();
     private sealed record ParagraphDraft(IReadOnlyList<SonnetCompiledLine> Lines, SonnetParagraphBoundary Boundary);
-    private sealed record RangeText(int Start, int End, string Text);
-    private sealed record Part(int Start, int End, bool IsWordLike);
-    private sealed record TimelineItem(int StartOffset, int EndOffset, SonnetGraphemeTiming Timing);
 }

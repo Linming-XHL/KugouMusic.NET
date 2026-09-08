@@ -12,7 +12,17 @@ public sealed record SonnetLine(
     string? SongPart = null,
     int? BlockIndex = null,
     bool IsChorus = false,
-    double? RenderEndTime = null);
+    double? RenderEndTime = null)
+{
+    public SonnetLanguage LanguageHint { get; init; } = SonnetLanguage.Auto;
+}
+
+public enum SonnetLanguage { Auto, Chinese, Japanese, English }
+public enum SonnetLexicalKind { Other, Noun, Verb, Adjective, Adverb, Pronoun, Function, Negation, Whitespace, Punctuation, Symbol }
+public enum SonnetLexicalSource { Dictionary, UnknownWord, JapaneseModel, Scanner }
+public sealed record SonnetLexicalWord(string Text, int StartOffset, int EndOffset,
+    SonnetLanguage Language, SonnetLexicalKind Kind, SonnetLexicalSource Source);
+public sealed record SonnetEmphasis(int Priority, double ReliableDurationPerGrapheme, int Occurrences);
 
 public sealed record SonnetTheme(
     EffectColor Background,
@@ -98,7 +108,12 @@ public enum SonnetTransitionKind { FastBlur, MonoGlitch, CameraPull }
 public enum SonnetSegmentRole { Hero, SemiHero, Support, Decoration }
 public enum SonnetLayoutDirection { Horizontal, Vertical }
 
-public sealed record SonnetGraphemeTiming(string Text, double StartTime, double EndTime, int? WordIndex = null);
+public sealed record SonnetGraphemeTiming(string Text, double StartTime, double EndTime, int? WordIndex = null)
+{
+    public bool IsEstimated { get; init; }
+    public bool HasReliableStart { get; init; } = true;
+    public bool HasReliableEnd { get; init; } = true;
+}
 public sealed record SonnetSemanticSegment(
     string Text,
     int StartOffset,
@@ -107,7 +122,13 @@ public sealed record SonnetSemanticSegment(
     double EndTime,
     IReadOnlyList<int> WordIndices,
     IReadOnlyList<SonnetGraphemeTiming> Graphemes,
-    bool IsWordLike);
+    bool IsWordLike)
+{
+    public IReadOnlyList<SonnetLexicalWord> LexicalWords { get; init; } = [];
+    public int? CoreStartOffset { get; init; }
+    public int? CoreEndOffset { get; init; }
+    public SonnetEmphasis? Emphasis { get; init; }
+}
 
 public sealed record SonnetCompiledLine(
     int SourceIndex,
@@ -143,7 +164,7 @@ public sealed record SonnetParagraph(
 
 public sealed record SonnetProgram(string Seed, double ParagraphGapThreshold, IReadOnlyList<SonnetParagraph> Paragraphs)
 {
-    public const int Version = 1;
+    public const int Version = 2;
 }
 
 public sealed record SonnetTypographyPlacement(

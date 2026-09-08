@@ -63,11 +63,11 @@ public sealed class LatentBackgroundScene : EffectScene
         _vao = 0;
         try
         {
-            _mesh = new(_gl,Vertex,LatentShaders.Mesh,"Folia latent mesh");
-            _dither = new(_gl,Vertex,LatentShaders.Dither,"Folia latent dither");
-            _composite = new(_gl,Vertex,Composite,"Folia latent soft-light");
-            _meshBuffer = new(_gl);
-            _ditherBuffer = new(_gl);
+            _mesh = new EffectShaderProgram(_gl,Vertex,LatentShaders.Mesh,"Folia latent mesh");
+            _dither = new EffectShaderProgram(_gl,Vertex,LatentShaders.Dither,"Folia latent dither");
+            _composite = new EffectShaderProgram(_gl,Vertex,Composite,"Folia latent soft-light");
+            _meshBuffer = new EffectFramebuffer(_gl);
+            _ditherBuffer = new EffectFramebuffer(_gl);
             _vao = _gl.GenVertexArray();
         }
         catch { DisposeGpuResources(); throw; }

@@ -19,6 +19,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Sonnet/LanguageData/*.bin" LogicalName="Sonnet.LanguageData.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Sonnet/LanguageData/*.txt" LogicalName="Sonnet.LanguageData.%(Filename)%(Extension)" />
+    <None Update="Sonnet/LanguageData/*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="GenerateSonnetLanguageData" BeforeTargets="PrepareForBuild" Condition="'$(GenerateSonnetLanguageData)' == 'true'">
+    <Exec Command="python3 &quot;$(MSBuildThisFileDirectory)../../../tools/generate-sonnet-language-data.py&quot;" />
+  </Target>
+
+  <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>AvaloniaSilkEffects.Tests</_Parameter1>
     </AssemblyAttribute>

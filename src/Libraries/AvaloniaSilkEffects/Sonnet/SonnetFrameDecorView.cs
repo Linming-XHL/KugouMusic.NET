@@ -18,14 +18,14 @@ internal sealed class SonnetFrameDecorView
     {
         var turns = MathF.Round(placement.Rotation / (MathF.PI / 2));
         return MathF.Abs(placement.Rotation - turns * MathF.PI / 2) < 0.000001f && MathF.Abs(turns % 2) == 1
-            ? new(placement.MeasuredHeight, placement.MeasuredWidth)
-            : new(placement.MeasuredWidth, placement.MeasuredHeight);
+            ? new Vector2(placement.MeasuredHeight, placement.MeasuredWidth)
+            : new Vector2(placement.MeasuredWidth, placement.MeasuredHeight);
     }
 
     internal SonnetFrameDecorView(SonnetTypographyPlacement placement, float fontSize, SonnetTheme theme,
         int variant, double firstGlyphStart, double shotStart, double shotEnd)
     {
-        Root = new EffectContainer { Position = new(placement.X, placement.Y), Rotation = placement.Rotation, Alpha = 0 };
+        Root = new EffectContainer { Position = new Vector2(placement.X, placement.Y), Rotation = placement.Rotation, Alpha = 0 };
         StartTime = firstGlyphStart;
         EndTime = firstGlyphStart + SonnetMotion.GlyphMotionDuration(shotStart, shotEnd) * 1.25;
         var pad = Math.Clamp(fontSize * 0.22f, 8, 20);
@@ -66,7 +66,7 @@ internal sealed class SonnetFrameDecorView
                         AddBracket(ornament, sign * (offset + 4), sign, arm, stroke * 0.8f, color with { A = 0.5f });
                         var diamond = Math.Clamp(pad * 0.45f, 3.5f, 7);
                         var middle = new EffectContainer { Position = (start + end) / 2 };
-                        middle.Add(new PolygonNode { Points = [new(0, -diamond), new(diamond, 0), new(0, diamond), new(-diamond, 0)], Color = color });
+                        middle.Add(new PolygonNode { Points = [new Vector2(0, -diamond), new Vector2(diamond, 0), new Vector2(0, diamond), new Vector2(-diamond, 0)], Color = color });
                         Root.Add(middle);
                         _ornaments.Add((middle, side));
                     }

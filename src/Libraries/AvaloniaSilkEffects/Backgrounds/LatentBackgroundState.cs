@@ -6,8 +6,8 @@ public sealed record LatentAudio(float Power = 0, float Bass = 0, float LowMid =
 public sealed record LatentPalette(EffectColor Background, EffectColor Primary,
     EffectColor Secondary, EffectColor Accent, IReadOnlyList<EffectColor> Cover)
 {
-    public static LatentPalette Midnight => new(new(.051f,.071f,.208f), new(.9f,.91f,.95f),
-        new(.42f,.45f,.57f), new(.55f,.59f,.72f), []);
+    public static LatentPalette Midnight => new(new EffectColor(.051f,.071f,.208f), new EffectColor(.9f,.91f,.95f),
+        new EffectColor(.42f,.45f,.57f), new EffectColor(.55f,.59f,.72f), []);
 
     public EffectColor[] MeshColors()
     {

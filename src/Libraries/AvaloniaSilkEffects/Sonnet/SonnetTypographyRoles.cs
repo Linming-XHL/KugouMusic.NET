@@ -1,16 +1,9 @@
-using ZLinq;
+using System.Globalization;
 
 namespace AvaloniaSilkEffects.Sonnet;
 
-// Exact port of Folia v0.7.2 sonnetTypographyRoles.ts.
 public static class SonnetTypographyRoles
 {
-    private const int SemiHeroMinGap = 2;
-    private const int SemiHeroMinVisibleLength = 2;
-    private const int SemiHeroMinLineWords = 4;
-    private const double SemiHeroScoreRatio = 0.35;
-    private const int SemiHeroMultiWordCount = 9;
-
     public static bool IsEmphasis(SonnetSegmentRole role) =>
         role is SonnetSegmentRole.Hero or SonnetSegmentRole.SemiHero;
 
@@ -26,99 +19,77 @@ public static class SonnetTypographyRoles
         return role == SonnetSegmentRole.Decoration ? 300 : 700;
     }
 
-    public static int VisibleLength(SonnetSemanticSegment segment) =>
-        segment.Graphemes.Count(item => item.Text.Trim().Length > 0);
+    public static int VisibleLength(SonnetSemanticSegment segment) => segment.Graphemes.Count > 0
+        ? segment.Graphemes.Count(item => !string.IsNullOrWhiteSpace(item.Text))
+        : StringInfo.ParseCombiningCharacters(segment.Text.Trim()).Length;
 
-    public static double HeroScore(SonnetSemanticSegment segment)
+    // Retained as a coarse public score. All selection uses the lexicographic
+    // comparator: no amount of duration or repetition can outrank a word class.
+    public static double HeroScore(SonnetSemanticSegment segment) => Emphasis(segment).Priority;
+
+    public static bool CanEmphasize(SonnetSemanticSegment segment) =>
+        segment.IsWordLike && VisibleLength(segment) > 0 && Emphasis(segment).Priority > 0;
+
+    public static int CompareCandidates(SonnetSemanticSegment left, SonnetSemanticSegment right)
     {
-        var lengthScore = Math.Min(VisibleLength(segment), 8) * 14;
-        var durationScore = Math.Min(2.5, Math.Max(0, segment.EndTime - segment.StartTime)) * 18;
-        return lengthScore + durationScore;
+        var a = Emphasis(left);
+        var b = Emphasis(right);
+        var comparison = a.Priority.CompareTo(b.Priority);
+        if (comparison != 0) return comparison;
+        comparison = a.ReliableDurationPerGrapheme.CompareTo(b.ReliableDurationPerGrapheme);
+        return comparison != 0 ? comparison : a.Occurrences.CompareTo(b.Occurrences);
     }
 
     public static int FindHeroIndex(IReadOnlyList<SonnetSemanticSegment> segments)
     {
-        var bestIndex = -1;
+        var best = -1;
         for (var index = 0; index < segments.Count; index++)
-        {
-            if (segments[index].IsWordLike)
-            {
-                bestIndex = index;
-                break;
-            }
-        }
-
-        var bestScore = double.NegativeInfinity;
-        for (var index = 0; index < segments.Count; index++)
-        {
-            var segment = segments[index];
-            if (!segment.IsWordLike || VisibleLength(segment) == 0) continue;
-            var score = HeroScore(segment);
-            if (score <= bestScore) continue;
-            bestScore = score;
-            bestIndex = index;
-        }
-
-        return Math.Max(0, bestIndex);
+            if (CanEmphasize(segments[index]) && (best < 0 || CompareCandidates(segments[index], segments[best]) > 0))
+                best = index;
+        return best;
     }
 
-    public static IReadOnlyList<int> FindSemiHeroIndices(
-        IReadOnlyList<SonnetSemanticSegment> segments,
-        int heroIndex)
+    public static IReadOnlyList<int> FindSemiHeroIndices(IReadOnlyList<SonnetSemanticSegment> segments, int heroIndex)
     {
-        if (heroIndex < 0 || heroIndex >= segments.Count) return [];
-
-        var wordLikeCount = segments.AsValueEnumerable().Count(segment =>
-            segment.IsWordLike && VisibleLength(segment) > 0);
-        if (wordLikeCount < SemiHeroMinLineWords) return [];
-
-        var threshold = HeroScore(segments[heroIndex]) * SemiHeroScoreRatio;
-        var candidates = segments.AsValueEnumerable()
-            .Select((segment, index) => new Candidate(segment, index))
-            .Where(item =>
-                item.Index != heroIndex
-                && item.Segment.IsWordLike
-                && VisibleLength(item.Segment) >= SemiHeroMinVisibleLength
-                && Math.Abs(item.Index - heroIndex) >= SemiHeroMinGap
-                && HeroScore(item.Segment) >= threshold)
-            .ToArray();
-        if (candidates.Length == 0) return [];
-
-        Candidate? BestOf(IEnumerable<Candidate> source)
+        if (heroIndex < 0 || heroIndex >= segments.Count || !CanEmphasize(segments[heroIndex])) return [];
+        var candidates = Enumerable.Range(0, segments.Count)
+            .Where(index => index != heroIndex && CanEmphasize(segments[index]) && HasDisplayGap(segments, index, heroIndex))
+            .ToList();
+        candidates.Sort((left, right) =>
         {
-            Candidate? best = null;
-            foreach (var item in source)
-            {
-                if (best is null || HeroScore(item.Segment) > HeroScore(best.Segment)) best = item;
-            }
-            return best;
-        }
-
-        var heroLeansEarly = heroIndex <= (segments.Count - 1) / 2d;
-        var primarySide = candidates.Where(item => heroLeansEarly
-            ? item.Index > heroIndex
-            : item.Index < heroIndex).ToArray();
-        var secondarySide = candidates.Where(item => heroLeansEarly
-            ? item.Index < heroIndex
-            : item.Index > heroIndex).ToArray();
-
-        var picks = new List<int>(2);
-        var primary = BestOf(primarySide) ?? BestOf(secondarySide);
-        if (primary is not null) picks.Add(primary.Index);
-        if (wordLikeCount >= SemiHeroMultiWordCount && primary is not null)
+            var comparison = CompareCandidates(segments[right], segments[left]);
+            return comparison != 0 ? comparison : left.CompareTo(right);
+        });
+        var selected = new List<int>(2);
+        foreach (var candidate in candidates)
         {
-            var secondary = BestOf(secondarySide.AsValueEnumerable().Where(item =>
-                Math.Abs(item.Index - primary.Index) >= SemiHeroMinGap).ToArray());
-            if (secondary is not null) picks.Add(secondary.Index);
+            if (selected.Any(index => !HasDisplayGap(segments, index, candidate))) continue;
+            selected.Add(candidate);
+            if (selected.Count == 2) break;
         }
-
-        picks.Sort();
-        return picks;
+        selected.Sort();
+        return selected;
     }
 
-    public static int FindSemiHeroIndex(
-        IReadOnlyList<SonnetSemanticSegment> segments,
-        int heroIndex) => FindSemiHeroIndices(segments, heroIndex).AsValueEnumerable().FirstOrDefault(-1);
+    public static int FindSemiHeroIndex(IReadOnlyList<SonnetSemanticSegment> segments, int heroIndex) =>
+        FindSemiHeroIndices(segments, heroIndex).FirstOrDefault(-1);
 
-    private sealed record Candidate(SonnetSemanticSegment Segment, int Index);
+    internal static bool HasDisplayGap(IReadOnlyList<SonnetSemanticSegment> segments, int left, int right)
+    {
+        for (var index = Math.Min(left, right) + 1; index < Math.Max(left, right); index++)
+            if (!string.IsNullOrWhiteSpace(segments[index].Text)) return true;
+        return false;
+    }
+
+    private static SonnetEmphasis Emphasis(SonnetSemanticSegment segment)
+    {
+        if (segment.Emphasis is { } emphasis) return emphasis;
+        // Compatibility for callers constructing semantic segments directly.
+        // No dictionary load or guessed word-level time is needed here.
+        if (!segment.IsWordLike || string.IsNullOrWhiteSpace(segment.Text)) return new SonnetEmphasis(0, 0, 0);
+        var language = segment.Text.EnumerateRunes().Any(SonnetTokenizer.IsKana) ? SonnetLanguage.Japanese
+            : segment.Text.EnumerateRunes().Any(SonnetTokenizer.IsHan) ? SonnetLanguage.Chinese : SonnetLanguage.English;
+        var kind = SonnetFunctionWords.Classify(segment.Text.Trim(), language, SonnetLexicalKind.Other);
+        return new SonnetEmphasis(SonnetFunctionWords.Priority(kind), 0, 1);
+    }
 }

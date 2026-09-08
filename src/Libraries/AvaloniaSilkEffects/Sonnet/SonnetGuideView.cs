@@ -226,7 +226,7 @@ internal sealed class SonnetGuideView
         else if (kind == 1)
             root.Add(new ShapeNode { Position = new Vector2(-size), Size = new Vector2(size * 2), Color = color });
         else if (kind == 3)
-            root.Add(new PolygonNode { Points = [new(0, -size), new(size, 0), new(0, size), new(-size, 0)], Color = color });
+            root.Add(new PolygonNode { Points = [new Vector2(0, -size), new Vector2(size, 0), new Vector2(0, size), new Vector2(-size, 0)], Color = color });
         else
         {
             root.Add(new ShapeNode { Shape = EffectShapeKind.Line, Position = new Vector2(-size, 0), Size = new Vector2(size * 2, 0), StrokeWidth = 2, Color = color });

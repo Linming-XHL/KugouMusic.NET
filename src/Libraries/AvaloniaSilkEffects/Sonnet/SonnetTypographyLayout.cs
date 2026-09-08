@@ -42,7 +42,7 @@ public static class SonnetTypographyLayout
         foreach (var line in lines)
         {
             var hero = FindHero(line);
-            roles[offset + hero] = SonnetSegmentRole.Hero;
+            if (hero >= 0) roles[offset + hero] = SonnetSegmentRole.Hero;
             foreach (var semi in FindSemiHeroes(line, hero)) roles[offset + semi] = SonnetSegmentRole.SemiHero;
             offset += line.Count;
         }
@@ -54,31 +54,22 @@ public static class SonnetTypographyLayout
         var globalHeroIndex = FindHero(segments);
         var editorialVariant = layoutVariantSeed % 5;
         var secondaryHeroIndex = -1;
-        if (editorialVariant == 3 && segments.Length > 2)
+        if (editorialVariant == 3 && globalHeroIndex >= 0)
         {
-            var bestScore = double.NegativeInfinity;
+            // Reuse an already selected emphasis candidate. Editorial composition
+            // must not promote a third support word or create a second hero in a line.
             for (var index = 0; index < segments.Length; index++)
             {
-                var segment = segments[index];
-                if (index == globalHeroIndex || !segment.IsWordLike || VisibleLength(segment) == 0) continue;
-                var distanceBonus = Math.Abs(index - globalHeroIndex) > 1 ? 50 : 0;
-                var score = HeroScore(segment) + distanceBonus;
-                if (score <= bestScore) continue;
-                bestScore = score;
-                secondaryHeroIndex = index;
+                if (!IsEmphasis(roles[index]) || index == globalHeroIndex
+                    || !SonnetTypographyRoles.CanEmphasize(segments[index])
+                    || !SonnetTypographyRoles.HasDisplayGap(segments, index, globalHeroIndex)) continue;
+                if (secondaryHeroIndex < 0 || SonnetTypographyRoles.CompareCandidates(segments[index], segments[secondaryHeroIndex]) > 0)
+                    secondaryHeroIndex = index;
             }
-            if (secondaryHeroIndex == -1) editorialVariant = 0;
+            if (secondaryHeroIndex < 0) editorialVariant = 0;
         }
-        else if (editorialVariant == 3)
-        {
+        else if (editorialVariant == 3 || editorialVariant == 4 && segments.Length < 2)
             editorialVariant = 0;
-        }
-        else if (editorialVariant == 4 && segments.Length < 2)
-        {
-            editorialVariant = 2;
-        }
-        if (shotKind == SonnetShotKind.EditorialColumn && editorialVariant == 3 && secondaryHeroIndex >= 0)
-            roles[secondaryHeroIndex] = SonnetSegmentRole.Hero;
         var boxes = new List<Box>(segments.Length);
         for (var index = 0; index < segments.Length; index++)
         {
@@ -197,7 +188,7 @@ public static class SonnetTypographyLayout
         List<Box> boxes, SonnetShotKind kind, float width, float height, float fontSize,
         uint seed, int layoutVariantSeed, int heroIndex, int editorialVariant, int secondaryHeroIndex)
     {
-        if (kind == SonnetShotKind.PosterBlocks)
+        if (kind == SonnetShotKind.PosterBlocks || heroIndex < 0)
             ApplyPosterBlocks(boxes, width, height, fontSize, seed, heroIndex);
         else
             ApplyExactFlow(boxes, kind, width, height, fontSize, layoutVariantSeed,
@@ -228,8 +219,11 @@ public static class SonnetTypographyLayout
             EnterY = box.EnterY,
         }).ToArray();
         SonnetPosterBlocksLayout.Layout(posterBoxes, width, height, baseFontSize, seed);
-        posterBoxes[heroIndex].EnterX = 0;
-        posterBoxes[heroIndex].EnterY = height * 0.15;
+        if (heroIndex >= 0)
+        {
+            posterBoxes[heroIndex].EnterX = 0;
+            posterBoxes[heroIndex].EnterY = height * 0.15;
+        }
         for (var index = 0; index < boxes.Count; index++)
         {
             var source = posterBoxes[index];
