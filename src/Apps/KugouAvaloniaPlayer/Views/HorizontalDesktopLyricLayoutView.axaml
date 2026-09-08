@@ -85,7 +85,7 @@
                         <Button Command="{Binding Owner.Player.PlayNextCommand}" Classes="Basic">
                             <PathIcon Data="{x:Static suki:Icons.ChevronRight}" Foreground="White" />
                         </Button>
-                        <Button Click="OnCloseClicked" Classes="Basic" ToolTip.Tip="关闭歌词">
+                        <Button Click="OnCloseClicked" Classes="Basic NoPressedAnimation" ToolTip.Tip="关闭歌词">
                             <PathIcon Data="{x:Static suki:Icons.Cross}" Foreground="White" Width="12" />
                         </Button>
                     </StackPanel>
