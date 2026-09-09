@@ -515,6 +515,19 @@
 
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,6">
                                         <StackPanel>
+                                            <TextBlock Text="歌词锁定" FontWeight="DemiBold" />
+                                            <TextBlock Text="解除锁定后可拖动调整位置，重启后保持解锁"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource SukiLowText}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Classes="Basic"
+                                                Content="解除桌面歌词锁定"
+                                                Command="{Binding UnlockDesktopLyricCommand}" />
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,6">
+                                        <StackPanel>
                                             <TextBlock Text="排版方向" FontWeight="DemiBold" />
                                             <TextBlock Text="在横向与竖向桌面歌词之间切换"
                                                        FontSize="12"

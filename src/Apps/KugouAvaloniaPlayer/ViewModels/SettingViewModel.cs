@@ -57,6 +57,7 @@ public partial class SettingViewModel : PageViewModelBase
     private readonly IGitHubReleaseService _releaseService;
     private readonly KgSessionManager _sessionManager;
     private readonly IMainWindowService _mainWindowService;
+    private readonly IDesktopLyricWindowService _desktopLyricWindowService;
     private readonly IMessenger _messenger;
     private readonly ITaskbarLyricsService _taskbarLyricsService;
     private readonly IUiPreferencesState _uiPreferencesState;
@@ -222,7 +223,8 @@ public partial class SettingViewModel : PageViewModelBase
         ISukiDialogManager dialogManager, EqSettingsViewModel eqSettingsViewModel, KgSessionManager sessionManager,
         IGlobalShortcutService globalShortcutService, IGitHubReleaseService releaseService,
         IFolderPickerService folderPickerService, IUiPreferencesState uiPreferencesState,
-        IMainWindowService mainWindowService, IMessenger messenger, ITaskbarLyricsService taskbarLyricsService)
+        IMainWindowService mainWindowService, IMessenger messenger, ITaskbarLyricsService taskbarLyricsService,
+        IDesktopLyricWindowService desktopLyricWindowService)
     {
         _userClient = userClient;
         _authClient = authClient;
@@ -234,6 +236,7 @@ public partial class SettingViewModel : PageViewModelBase
         _folderPickerService = folderPickerService;
         _uiPreferencesState = uiPreferencesState;
         _mainWindowService = mainWindowService;
+        _desktopLyricWindowService = desktopLyricWindowService;
         _messenger = messenger;
         _taskbarLyricsService = taskbarLyricsService;
 
@@ -449,6 +452,12 @@ public partial class SettingViewModel : PageViewModelBase
         {
             IsLoading = false;
         }
+    }
+
+    [RelayCommand]
+    private void UnlockDesktopLyric()
+    {
+        _desktopLyricWindowService.Unlock();
     }
 
     [RelayCommand]

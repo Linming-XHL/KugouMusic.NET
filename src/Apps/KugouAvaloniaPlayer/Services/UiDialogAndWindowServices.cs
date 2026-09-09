@@ -25,6 +25,7 @@ public interface IDesktopLyricWindowService
     event Action<bool>? IsOpenChanged;
     void Toggle();
     void Close();
+    void Unlock();
 }
 
 public interface IMainWindowService
@@ -102,6 +103,21 @@ public sealed class DesktopLyricWindowService(
     public void Close()
     {
         uiDispatcher.RunOrPost(CloseCore);
+    }
+
+    public void Unlock()
+    {
+        uiDispatcher.RunOrPost(() =>
+        {
+            if (_lyricWindow?.DataContext is DesktopLyricViewModel lyricViewModel)
+                lyricViewModel.Unlock();
+
+            if (SettingsManager.Settings.DesktopLyricLocked)
+            {
+                SettingsManager.Settings.DesktopLyricLocked = false;
+                SettingsManager.Save();
+            }
+        });
     }
 
     private void ToggleCore()
