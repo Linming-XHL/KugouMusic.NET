@@ -181,7 +181,7 @@
             <Border Classes="PortraitModeButton"
                     Classes.active="{Binding IsPortraitModeEnabled}"
                     CornerRadius="20"
-                    Padding="12,8">
+                    Padding="10,4">
                 <Svg Path="/Assets/portrait-mode.svg"
                      Css="path { stroke: white; fill: none; } circle { stroke: white; fill: none; }"
                      Width="25"
